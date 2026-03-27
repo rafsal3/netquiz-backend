@@ -81,8 +81,8 @@ router.get('/', verifyToken, async (req: AuthRequest, res: Response) => {
     }
 });
 
-// ─── GET /submissions/:id — admin only ────────────────
-router.get('/:id', verifyToken, isAdmin, async (req: AuthRequest, res: Response) => {
+// ─── GET /submissions/:id ────────────────────────────
+router.get('/:id', verifyToken, async (req: AuthRequest, res: Response) => {
     try {
         const submission = await Submission.findById(req.params.id)
             .populate('paperId', 'name')
@@ -90,6 +90,16 @@ router.get('/:id', verifyToken, isAdmin, async (req: AuthRequest, res: Response)
             .populate('subModuleId', 'name');
 
         if (!submission) return res.status(404).json({ message: 'Submission not found' });
+
+        // Check if user is admin
+        const adminUids = process.env.ADMIN_UIDS?.split(',') ?? [];
+        const isUserAdmin = req.uid && adminUids.includes(req.uid);
+
+        // Allow if admin or if the user is the one who submitted it
+        if (!isUserAdmin && submission.submittedBy !== req.uid) {
+            return res.status(403).json({ message: 'Forbidden: You do not have permission to view this submission' });
+        }
+
         res.json({ submission });
     } catch (err) {
         res.status(500).json({ message: 'Server error', error: err });

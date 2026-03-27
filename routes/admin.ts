@@ -3,6 +3,7 @@ import { verifyToken, AuthRequest } from '../middleware/verifyToken';
 import { isAdmin } from '../middleware/isAdmin';
 import User from '../models/User';
 import Progress from '../models/Progress';
+import admin from '../config/firebase';
 
 const router = Router();
 
@@ -43,6 +44,53 @@ router.get('/users', async (req: AuthRequest, res: Response) => {
         });
     } catch (err) {
         res.status(500).json({ message: 'Server error', error: err });
+    }
+});
+
+// ─── GET /admin/users/firebase ─────────────────────────
+// List all users from Firebase directly
+router.get('/firebase-users', async (req: AuthRequest, res: Response) => {
+    try {
+        const { nextPageToken } = req.query;
+        const result = await admin.auth().listUsers(100, nextPageToken as string);
+        res.json({
+            users: result.users,
+            pageToken: result.pageToken,
+        });
+    } catch (err) {
+        res.status(500).json({ message: 'Firebase error', error: err });
+    }
+});
+
+// ─── POST /admin/users/sync ────────────────────────────
+// Sync Firebase users with MongoDB
+router.post('/users/sync', async (req: AuthRequest, res: Response) => {
+    try {
+        const adminUids = process.env.ADMIN_UIDS?.split(',') ?? [];
+        const result = await admin.auth().listUsers(1000); // Sync first 1000 users
+        const users = result.users;
+        
+        const ops = users.map(u => ({
+            updateOne: {
+                filter: { uid: u.uid },
+                update: { 
+                    $setOnInsert: { 
+                        uid: u.uid, 
+                        email: u.email, 
+                        displayName: u.displayName || '',
+                        role: (adminUids.includes(u.uid) ? 'admin' : 'user') as 'admin' | 'user',
+                        createdAt: new Date(u.metadata.creationTime)
+                    } 
+                },
+                upsert: true
+            }
+        }));
+
+        await User.bulkWrite(ops);
+
+        res.json({ message: `Synced ${users.length} users successfully.` });
+    } catch (err) {
+        res.status(500).json({ message: 'Sync error', error: err });
     }
 });
 

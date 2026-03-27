@@ -13,12 +13,16 @@ router.post('/login', verifyToken, async (req: AuthRequest, res: Response) => {
         let user = await User.findOne({ uid });
 
         if (!user) {
+            // Check if this UID is defined as an admin in .env
+            const adminUids = process.env.ADMIN_UIDS?.split(',') ?? [];
+            const role = uid && adminUids.includes(uid) ? 'admin' : 'user';
+
             // First login — create user
             user = await User.create({
                 uid,
                 email,
                 displayName: req.body.displayName ?? '',
-                role: 'user',
+                role: role,
             });
         }
 
