@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import { Types } from 'mongoose';
 import { verifyToken, AuthRequest } from '../middleware/verifyToken';
 import { isAdmin } from '../middleware/isAdmin';
 import Submission from '../models/Submission';
@@ -10,11 +11,29 @@ const router = Router();
 // Any logged in user can submit a community question
 router.post('/', verifyToken, async (req: AuthRequest, res: Response) => {
     try {
-        const {
+        let {
             paperId, moduleId, subModuleId,
             text, imageUrl, equation,
             options, correct, explanation,
         } = req.body as any;
+
+        // Handle conversion if options is an array
+        if (Array.isArray(options)) {
+            options = {
+                A: options[0] || '',
+                B: options[1] || '',
+                C: options[2] || '',
+                D: options[3] || '',
+            };
+        }
+
+        // Handle conversion if correct is a number (0-3)
+        if (typeof correct === 'number') {
+            const mapping = ['A', 'B', 'C', 'D'];
+            correct = mapping[correct] || 'A';
+        }
+
+        const isValidId = (id: any) => id && typeof id === 'string' && id.length === 24 && Types.ObjectId.isValid(id);
 
         if (!paperId || !text || !correct || !options) {
             return res.status(400).json({ message: 'paperId, text, options and correct are required' });
@@ -22,9 +41,9 @@ router.post('/', verifyToken, async (req: AuthRequest, res: Response) => {
 
         const submission = await Submission.create({
             submittedBy: req.uid,
-            paperId,
-            moduleId: moduleId || undefined,
-            subModuleId: subModuleId || undefined,
+            paperId: isValidId(paperId) ? paperId : undefined,
+            moduleId: isValidId(moduleId) ? moduleId : undefined,
+            subModuleId: isValidId(subModuleId) ? subModuleId : undefined,
             text,
             imageUrl: imageUrl || undefined,
             equation: equation || undefined,
