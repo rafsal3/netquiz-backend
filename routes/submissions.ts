@@ -69,6 +69,15 @@ router.get('/', verifyToken, async (req: AuthRequest, res: Response) => {
         if (status) filter.status = status;
         if (paperId) filter.paperId = paperId;
 
+        // Check if user is admin
+        const adminUids = process.env.ADMIN_UIDS?.split(',') ?? [];
+        const isUserAdmin = req.uid && adminUids.includes(req.uid);
+
+        // If not admin, only show their own submissions
+        if (!isUserAdmin) {
+            filter.submittedBy = req.uid;
+        }
+
         const submissions = await Submission.find(filter)
             .populate('paperId', 'name')
             .populate('moduleId', 'name')
