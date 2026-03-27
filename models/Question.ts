@@ -28,6 +28,19 @@ const QuestionSchema = new Schema<IQuestion>({
     explanation: String,
     source: { type: String, enum: ['admin', 'community'], default: 'admin' },
     createdBy: String, //firebase uid
-}, { timestamps: true })
+}, { 
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+});
+
+// Link to User model via the 'createdBy' field (Firebase UID)
+QuestionSchema.virtual('user', {
+    ref: 'User',
+    localField: 'createdBy',
+    foreignField: 'uid',
+    justOne: true
+});
+
 
 export default model<IQuestion>('Question', QuestionSchema);

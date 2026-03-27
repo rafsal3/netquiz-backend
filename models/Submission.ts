@@ -30,6 +30,26 @@ const SubmissionSchema = new Schema<ISubmission>({
     explanation: String,
     status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
     reviewedBy: String,
-}, { timestamps: true });
+}, { 
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+});
+
+// Link to User model via the 'uid' field
+SubmissionSchema.virtual('user', {
+    ref: 'User',
+    localField: 'submittedBy',
+    foreignField: 'uid',
+    justOne: true
+});
+
+// Link to reviewer user info
+SubmissionSchema.virtual('reviewer', {
+    ref: 'User',
+    localField: 'reviewedBy',
+    foreignField: 'uid',
+    justOne: true
+});
 
 export default model<ISubmission>('Submission', SubmissionSchema);

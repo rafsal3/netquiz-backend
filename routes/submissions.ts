@@ -82,6 +82,8 @@ router.get('/', verifyToken, async (req: AuthRequest, res: Response) => {
             .populate('paperId', 'name')
             .populate('moduleId', 'name')
             .populate('subModuleId', 'name')
+            .populate('user', 'displayName email')
+            .populate('reviewer', 'displayName email')
             .sort({ createdAt: -1 });
 
         res.json({ submissions });
@@ -96,7 +98,9 @@ router.get('/:id', verifyToken, async (req: AuthRequest, res: Response) => {
         const submission = await Submission.findById(req.params.id)
             .populate('paperId', 'name')
             .populate('moduleId', 'name')
-            .populate('subModuleId', 'name');
+            .populate('subModuleId', 'name')
+            .populate('user', 'displayName email')
+            .populate('reviewer', 'displayName email');
 
         if (!submission) return res.status(404).json({ message: 'Submission not found' });
 

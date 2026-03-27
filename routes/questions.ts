@@ -38,6 +38,7 @@ router.get('/', verifyToken, async (req: AuthRequest, res: Response) => {
             .populate('paperId', 'name')
             .populate('moduleId', 'name')
             .populate('subModuleId', 'name')
+            .populate('user', 'displayName email role')
             .sort({ createdAt: -1 });
 
         res.json({ questions });
@@ -61,6 +62,7 @@ router.get('/search', verifyToken, async (req: AuthRequest, res: Response) => {
             .populate('paperId', 'name')
             .populate('moduleId', 'name')
             .populate('subModuleId', 'name')
+            .populate('user', 'displayName email role')
             .limit(50);
 
         res.json({ questions });
@@ -79,7 +81,8 @@ router.get('/:id', verifyToken, async (req: AuthRequest, res: Response) => {
         const question = await Question.findById(id)
             .populate('paperId', 'name')
             .populate('moduleId', 'name')
-            .populate('subModuleId', 'name');
+            .populate('subModuleId', 'name')
+            .populate('user', 'displayName email role');
 
         if (!question) return res.status(404).json({ message: 'Question not found' });
         res.json({ question });

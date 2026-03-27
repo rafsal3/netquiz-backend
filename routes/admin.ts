@@ -70,21 +70,27 @@ router.post('/users/sync', async (req: AuthRequest, res: Response) => {
         const result = await admin.auth().listUsers(1000); // Sync first 1000 users
         const users = result.users;
         
-        const ops = users.map(u => ({
-            updateOne: {
-                filter: { uid: u.uid },
-                update: { 
-                    $setOnInsert: { 
-                        uid: u.uid, 
-                        email: u.email, 
-                        displayName: u.displayName || '',
-                        role: (adminUids.includes(u.uid) ? 'admin' : 'user') as 'admin' | 'user',
-                        createdAt: new Date(u.metadata.creationTime)
-                    } 
-                },
-                upsert: true
-            }
-        }));
+        const ops = users.map(u => {
+            const isAdminUid = adminUids.includes(u.uid);
+            return {
+                updateOne: {
+                    filter: { uid: u.uid },
+                    update: { 
+                        $set: { 
+                            email: u.email, 
+                            displayName: u.displayName || '',
+                            role: (isAdminUid ? 'admin' : 'user') as 'admin' | 'user',
+                        },
+                        $setOnInsert: { 
+                            uid: u.uid,
+                            createdAt: new Date(u.metadata.creationTime)
+                        } 
+                    },
+                    upsert: true
+                }
+            };
+        });
+
 
         await User.bulkWrite(ops);
 
