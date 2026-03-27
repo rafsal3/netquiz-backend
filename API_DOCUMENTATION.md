@@ -1,208 +1,156 @@
 # NetQuiz API Documentation
 
-This documentation provides details for all existing API endpoints in the NetQuiz backend.
-The base URL for the API is `http://your-base-url.com`.
-All requests should include a Firebase Auth ID Token in the `Authorization` header: `Bearer <token>`.
+This documentation provides comprehensive details for all API endpoints in the NetQuiz backend.
 
-> [!IMPORTANT]
-> Administrative permissions are granted to users whose Firebase UID is listed in the `ADMIN_UIDS` environment variable. While users also have a `role` field in the database, the current middleware prioritizes the environment variable list.
+## 🚀 General Information
+
+- **Base URL**: `https://netquiz-backend.onrender.com`
+- **Authentication**: All requests (except public GETs) require a Firebase Auth ID Token.
+- **Header**: `Authorization: Bearer <token>`
+- **Content-Type**: `application/json`
 
 ---
 
-## 👤 User APIs
+## 📦 Data Models
 
-These endpoints are used by the Flutter client and regular users.
+### ❓ Question / Submission Object
+When **receiving** a question from the API, the structure is:
+```json
+{
+  "_id": "65f...",
+  "text": "What is the capital of France?",
+  "options": {
+    "A": "Paris",
+    "B": "London",
+    "C": "Berlin",
+    "D": "Madrid"
+  },
+  "correct": "A",
+  "explanation": "Paris is the capital.",
+  "paperId": "...",
+  "moduleId": "...",
+  "subModuleId": "...",
+  "source": "admin",
+  "createdAt": "2024-..."
+}
+```
+
+---
+
+## 👤 User APIs (Public/Client)
 
 ### 🔐 Authentication
 
 #### `POST /auth/login`
-Called when the user opens the app or logs in. Creates a user in the database if it's their first time.
-- **Request Body:** `{ displayName?: string }`
-- **Response:** `{ user: UserObject }`
+Initializes user in the database.
+- **Request Body**: `{ "displayName": "User Name" }`
+- **Response**: `{ "user": { "uid": "...", "role": "user", ... } }`
 
 #### `GET /auth/me`
-Returns current logged-in user info.
-- **Response:** `{ user: UserObject }`
+Checks current session and returns user profile.
 
 ### 📚 Curriculum
 
 #### `GET /curriculum/papers`
-Fetch all available papers.
-- **Response:** `{ papers: Paper[] }`
+Returns all papers sorted by order.
 
-#### `GET /curriculum/modules`
-Fetch modules for a specific paper.
-- **Query Params:** `paperId?` (optional filter)
-- **Response:** `{ modules: Module[] }`
+#### `GET /curriculum/modules?paperId=<id>`
+Returns modules for a paper. If `paperId` is invalid/missing, returns all.
 
-#### `GET /curriculum/submodules`
-Fetch sub-modules for a specific module.
-- **Query Params:** `moduleId?` (optional filter)
-- **Response:** `{ subModules: SubModule[] }`
+#### `GET /curriculum/submodules?moduleId=<id>`
+Returns sub-modules for a module.
 
 ### ❓ Questions
 
 #### `GET /questions`
-Fetch questions with optional filtering.
-- **Query Params:**
-    - `paperId`: Filter by paper
-    - `moduleId`: Filter by module
-    - `subModuleId`: Filter by sub-module
-    - `source`: `admin` or `community`
-    - `uncategorized`: `true` to get questions without a module
-- **Response:** `{ questions: Question[] }`
+- **Query Params**: `paperId`, `moduleId`, `subModuleId`, `source` (admin/community), `uncategorized` (true/false)
+- **Response**: `{ "questions": [...] }`
 
 #### `GET /questions/:id`
-Get details of a single question.
-- **Response:** `{ question: QuestionObject }`
+Returns a single question by its MongoDB ID.
 
 #### `GET /questions/download/:paperId`
-Returns a full nested JSON structure of a paper (including modules, sub-modules, and questions) for offline storage.
-- **Response:** `{ paper: Paper, modules: NestedModule[] }`
+Returns the entire paper structure (nested) for offline use in Flutter.
 
-### 📝 Submissions (Community Questions)
+### 📝 Submissions (Community)
 
 #### `POST /submissions`
-Submit a new question from the community.
-- **Request Body:**
+Submit a question for community review.
+- **Required Body**:
     ```json
     {
-      "paperId": "string",
-      "moduleId": "string",
-      "subModuleId": "string",
-      "text": "string",
-      "options": ["string"],
-      "correct": "number",
-      "explanation": "string",
-      "imageUrl": "string",
-      "equation": "string"
+      "paperId": "24-char-hex-id",
+      "text": "Question text here",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correct": 0, // Index 0-3 (0=A, 1=B, etc.)
+      "explanation": "Optional explanation"
     }
     ```
-- **Response:** `{ submission: SubmissionObject }`
-
-#### `GET /submissions`
-Get list of submissions (can be filtered by status or paper).
-- **Query Params:** `status`, `paperId`
-- **Response:** `{ submissions: Submission[] }`
-
-### 📈 Progress
-
-#### `GET /progress/me`
-Retrieve the current user's full progress.
-- **Response:** `{ progress: ProgressObject }`
-
-#### `POST /progress/sync`
-Sync local progress with the server.
-- **Request Body:**
-    ```json
-    {
-      "questions": [
-        {
-          "questionId": "string",
-          "status": "unseen | got_it | review",
-          "attempts": 0,
-          "correct": 0,
-          "lastSeen": "ISO Date",
-          "avgTime": 0
-        }
-      ],
-      "lastActiveDate": "ISO Date"
-    }
-    ```
-- **Response:** `{ message: "Progress synced", streak: number, totalPoints: number, lastSyncedAt: Date }`
-
-#### `GET /progress/stats`
-Get summary statistics for the user profile.
-- **Response:** `{ total, mastered, review, unseen, accuracy, avgTime, streak, points }`
+    *Note: The backend converts the options array to the A/B/C/D object automatically.*
 
 ---
 
 ## 🛠 Admin APIs
 
-These endpoints require the user to have an `admin` role and are used by the Admin Dashboard.
-**All endpoints below require `verifyToken` and `isAdmin` middleware.**
-
-### 📚 Curriculum Management
-
-#### `POST /curriculum/papers`
-Create a new paper.
-- **Request Body:** `{ name: string, order: number }`
-
-#### `PUT /curriculum/papers/:id`
-Update an existing paper.
-
-#### `DELETE /curriculum/papers/:id`
-Delete a paper.
-
-#### `POST /curriculum/modules`
-Create a new module.
-- **Request Body:** `{ paperId, name, order }`
-
-#### `PUT /curriculum/modules/:id`
-Update a module.
-
-#### `DELETE /curriculum/modules/:id`
-Delete a module.
-
-#### `POST /curriculum/submodules`
-Create a new sub-module.
-- **Request Body:** `{ moduleId, paperId, name, order }`
-
-#### `PUT /curriculum/submodules/:id`
-Update a sub-module.
-
-#### `DELETE /curriculum/submodules/:id`
-Delete a sub-module.
+Requires the user's Firebase UID to be in the server's `ADMIN_UIDS` list.
 
 ### ❓ Question Management
 
 #### `POST /questions`
-Create a new admin-verified question.
-- **Request Body:** Similar to submission but source is set to `admin`.
+Create a verified admin question.
+- **Required Body**:
+    ```json
+    {
+      "paperId": "24-char-hex-id",
+      "text": "Question text here",
+      "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+      "correct": 0, // Or "A", "B", "C", "D"
+      "moduleId": "optional-id",
+      "subModuleId": "optional-id",
+      "explanation": "Optional",
+      "imageUrl": "Optional URL",
+      "equation": "Optional LaTeX"
+    }
+    ```
 
 #### `PUT /questions/:id`
-Update a question.
+Update an existing question. Send only the fields you want to change.
+- **Body Example**: `{ "text": "Updated text", "correct": "B" }`
 
 #### `DELETE /questions/:id`
-Delete a question.
+Permanently delete a question.
 
-### 📝 Submission Review
+### 📚 Curriculum Management
 
-#### `GET /submissions/:id`
-View a specific submission in detail.
+#### `POST /curriculum/papers`
+Body: `{ "name": "Paper 1", "order": 1 }`
 
-#### `PUT /submissions/:id`
-Edit a submission before approval.
+#### `POST /curriculum/modules`
+Body: `{ "paperId": "...", "name": "Module 1", "order": 1 }`
 
-#### `PUT /submissions/:id/approve`
-Approve a submission. This copies the content to the `questions` collection with `source: community`.
+#### `POST /curriculum/submodules`
+Body: `{ "moduleId": "...", "paperId": "...", "name": "Sub 1", "order": 1 }`
 
-#### `PUT /submissions/:id/reject`
-Reject a submission.
-
-#### `DELETE /submissions/:id`
-Delete a submission.
-
-### 👥 User Management
+### 👥 User & Stats
 
 #### `GET /admin/users`
-List all users.
-- **Query Params:** `search`, `page`, `limit`
-
-#### `GET /admin/users/:uid`
-Get single user details.
-
-#### `PUT /admin/users/:uid`
-Update user role (e.g., promote to admin) or display name.
-
-#### `DELETE /admin/users/:uid`
-Delete a user and their associated progress.
-
-#### `GET /admin/users/:uid/progress`
-View detailed progress metrics for a specific user.
-
-### 📊 Platform Stats
+List all registered users. Supports `search`, `page`, and `limit`.
 
 #### `GET /admin/stats`
-Get overall platform analytics (total users, active users today, accuracy, etc.).
-- **Response:** `{ totalUsers, activeToday, totalQuestionsSeen, overallAccuracy }`
+Returns data for the admin dashboard dashboard:
+- `totalUsers`: Total registered count
+- `activeToday`: Users who synced today
+- `totalQuestionsSeen`: Total attempts across all users
+- `overallAccuracy`: Average % correct
+
+---
+
+## ⚠️ Error Codes
+
+| Status | Meaning | Solution |
+| :--- | :--- | :--- |
+| **400** | Bad Request | Check if `paperId` is a 24-char hex string. Check if all required fields are present. |
+| **401** | Unauthorized | Token is missing or expired. Refresh Firebase token. |
+| **403** | Forbidden | User is not in the `ADMIN_UIDS` list. |
+| **404** | Not Found | Resource (Question/Paper) ID does not exist. |
+| **500** | Server Error | Check backend logs. Usually a database validation or connection error. |

@@ -118,8 +118,8 @@ router.post('/', verifyToken, isAdmin, async (req: AuthRequest, res: Response) =
         res.status(201).json({ question });
     } catch (err: any) {
         console.error('Error creating question:', err);
-        res.status(500).json({ 
-            message: 'Server error', 
+        res.status(500).json({
+            message: 'Server error',
             error: err.message || err,
             details: err.errors // Include Mongoose validation details if available
         });
