@@ -13,7 +13,14 @@ const router = Router();
 // Filters: paperId, moduleId, subModuleId, source (admin/community), uncategorized
 router.get('/', verifyToken, async (req: AuthRequest, res: Response) => {
     try {
-        const { paperId, moduleId, subModuleId, source, uncategorized } = req.query;
+        const { paperId, moduleId, subModuleId, source, uncategorized } = req.query as any;
+
+        const isValidId = (id: any) => id && typeof id === 'string' && id.length === 24 && Types.ObjectId.isValid(id);
+
+        // If any ID filter is provided but invalid, return empty results early
+        if (paperId && !isValidId(paperId)) return res.json({ questions: [] });
+        if (moduleId && !isValidId(moduleId)) return res.json({ questions: [] });
+        if (subModuleId && !isValidId(subModuleId)) return res.json({ questions: [] });
 
         const filter: Record<string, any> = {};
 

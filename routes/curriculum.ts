@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import { Types } from 'mongoose';
 import { verifyToken, AuthRequest } from '../middleware/verifyToken';
 import { isAdmin } from '../middleware/isAdmin';
 import Paper from '../models/Paper';
@@ -60,7 +61,14 @@ router.delete('/papers/:id', verifyToken, isAdmin, async (req: AuthRequest, res:
 // GET /curriculum/modules?paperId=
 router.get('/modules', async (req, res: Response) => {
     try {
-        const filter = req.query.paperId ? { paperId: req.query.paperId } : {};
+        const paperId = req.query.paperId as string;
+        
+        // If paperId is provided but invalid (e.g. "[object Object]"), return empty array
+        if (paperId && (!Types.ObjectId.isValid(paperId) || paperId.length !== 24)) {
+            return res.json({ modules: [] });
+        }
+
+        const filter = paperId ? { paperId } : {};
         const modules = await Module.find(filter).sort({ order: 1 });
         res.json({ modules });
     } catch (err) {
@@ -109,7 +117,14 @@ router.delete('/modules/:id', verifyToken, isAdmin, async (req: AuthRequest, res
 // GET /curriculum/submodules?moduleId=
 router.get('/submodules', async (req, res: Response) => {
     try {
-        const filter = req.query.moduleId ? { moduleId: req.query.moduleId } : {};
+        const moduleId = req.query.moduleId as string;
+
+        // If moduleId is provided but invalid (e.g. "[object Object]"), return empty array
+        if (moduleId && (!Types.ObjectId.isValid(moduleId) || moduleId.length !== 24)) {
+            return res.json({ subModules: [] });
+        }
+
+        const filter = moduleId ? { moduleId } : {};
         const subModules = await SubModule.find(filter).sort({ order: 1 });
         res.json({ subModules });
     } catch (err) {
