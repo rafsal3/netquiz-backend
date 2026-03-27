@@ -88,8 +88,21 @@ router.post('/', verifyToken, isAdmin, async (req: AuthRequest, res: Response) =
 
         const isValidId = (id: any) => id && typeof id === 'string' && id.length === 24 && Types.ObjectId.isValid(id);
 
+        if (!paperId || !isValidId(paperId)) {
+            return res.status(400).json({ message: 'Valid paperId is required' });
+        }
+        if (!text) {
+            return res.status(400).json({ message: 'Question text is required' });
+        }
+        if (!options) {
+            return res.status(400).json({ message: 'Options are required' });
+        }
+        if (!correct) {
+            return res.status(400).json({ message: 'Correct answer index or label is required' });
+        }
+
         const question = await Question.create({
-            paperId: isValidId(paperId) ? paperId : undefined,
+            paperId: paperId,
             moduleId: isValidId(moduleId) ? moduleId : undefined,
             subModuleId: isValidId(subModuleId) ? subModuleId : undefined,
             text,
@@ -103,8 +116,13 @@ router.post('/', verifyToken, isAdmin, async (req: AuthRequest, res: Response) =
         });
 
         res.status(201).json({ question });
-    } catch (err) {
-        res.status(500).json({ message: 'Server error', error: err });
+    } catch (err: any) {
+        console.error('Error creating question:', err);
+        res.status(500).json({ 
+            message: 'Server error', 
+            error: err.message || err,
+            details: err.errors // Include Mongoose validation details if available
+        });
     }
 });
 
