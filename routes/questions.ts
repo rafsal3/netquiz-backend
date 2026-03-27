@@ -46,10 +46,37 @@ router.get('/', verifyToken, async (req: AuthRequest, res: Response) => {
     }
 });
 
+// ─── GET /questions/search ───────────────────────────
+// Search questions by text
+router.get('/search', verifyToken, async (req: AuthRequest, res: Response) => {
+    try {
+        const { q } = req.query;
+        if (!q || typeof q !== 'string') {
+            return res.json({ questions: [] });
+        }
+
+        const questions = await Question.find({
+            text: { $regex: q, $options: 'i' }
+        })
+            .populate('paperId', 'name')
+            .populate('moduleId', 'name')
+            .populate('subModuleId', 'name')
+            .limit(50);
+
+        res.json({ questions });
+    } catch (err) {
+        res.status(500).json({ message: 'Server error', error: err });
+    }
+});
+
 // ─── GET /questions/:id ───────────────────────────────
 router.get('/:id', verifyToken, async (req: AuthRequest, res: Response) => {
     try {
-        const question = await Question.findById(req.params.id)
+        const { id } = req.params;
+        if (!Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: 'Invalid question ID' });
+        }
+        const question = await Question.findById(id)
             .populate('paperId', 'name')
             .populate('moduleId', 'name')
             .populate('subModuleId', 'name');

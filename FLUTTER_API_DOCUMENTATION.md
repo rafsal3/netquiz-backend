@@ -30,6 +30,11 @@ NetQuiz supports offline quizzes. Before starting a quiz in a paper, call:
 - **Response**: A nested JSON object containing all modules, sub-modules, and questions for that paper.
 - **Storage**: Save this JSON to local storage (SQLite or SharedPreferences) to allow the user to take quizzes without internet.
 
+### 4. Search
+Users can search for specific questions across all papers:
+- **`GET /questions/search?q=keyword`**
+- **Response**: A list of matched questions with their paper and module details populated.
+
 ### 3. Syncing Progress
 After completing a quiz (or periodically), send the user's progress to the server.
 - **`POST /progress/sync`**
