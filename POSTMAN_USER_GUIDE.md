@@ -7,12 +7,14 @@ This guide is designed for developers testing the **User (Client)** features of 
 ### Step 1: Obtain a User Token
 To test user-protected routes, you need a valid **Firebase ID Token**.
 
-1.  **From the App**: Log in to the application.
-2.  **From Console**: If you are developing the Flutter/Web app, you can print `await user.getIdToken()` to the console and copy it.
-3.  **Using Firebase REST API**:
-    - **POST** `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=[YOUR_FIREBASE_API_KEY]`
-    - **Body**: `{ "email": "user@example.com", "password": "password123", "returnSecureToken": true }`
+1.  **Using Registration/Login (Best for Postman)**:
+    - **Register**: `POST {{baseUrl}}/auth/register`
+      - Body: `{ "email": "user@example.com", "password": "password123", "displayName": "John Doe" }`
+    - **Login**: `POST {{baseUrl}}/auth/login`
+      - Body: `{ "email": "user@example.com", "password": "password123" }`
     - Copy the `idToken` from the response.
+
+2.  **From the App**: Log in to the application and pull the token from the DevTools console: `await auth.currentUser.getIdToken()`.
 
 ---
 

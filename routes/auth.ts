@@ -1,10 +1,92 @@
-import { Router, Response } from 'express';
+import { Router, Response, Request } from 'express';
 import { verifyToken, AuthRequest } from '../middleware/verifyToken';
 import User from '../models/User';
+import admin from '../config/firebase';
 
 const router = Router();
 
-// POST /auth/login or /auth/sync — called when user opens app / logs in
+// POST /auth/register — register a user using email/password
+router.post('/register', async (req: Request, res: Response) => {
+    try {
+        const { email, password, displayName } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Email and password are required' });
+        }
+
+        // 1. Create user in Firebase
+        const userRecord = await admin.auth().createUser({
+            email,
+            password,
+            displayName: displayName ?? '',
+        });
+
+        // 2. Create user in MongoDB
+        const adminUids = process.env.ADMIN_UIDS?.split(',') ?? [];
+        const role = userRecord.uid && adminUids.includes(userRecord.uid) ? 'admin' : 'user';
+
+        const user = await User.create({
+            uid: userRecord.uid,
+            email: userRecord.email,
+            displayName: userRecord.displayName ?? '',
+            role: role,
+        });
+
+        res.status(201).json({ 
+            message: 'User registered successfully', 
+            uid: userRecord.uid,
+            user 
+        });
+    } catch (err: any) {
+        console.error('Registration Error:', err);
+        res.status(400).json({ message: 'Registration failed', error: err.message });
+    }
+});
+
+// POST /auth/login — login with email/password to get an ID Token
+// Note: Requires FIREBASE_API_KEY in .env
+router.post('/login', async (req: Request, res: Response) => {
+    try {
+        const { email, password } = req.body;
+        const apiKey = process.env.FIREBASE_API_KEY;
+
+        if (!apiKey) {
+            return res.status(500).json({ message: 'Server configuration error: FIREBASE_API_KEY is missing' });
+        }
+
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Email and password are required' });
+        }
+
+        // Call Firebase REST API to authenticate
+        const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`, {
+            method: 'POST',
+            body: JSON.stringify({ email, password, returnSecureToken: true }),
+            headers: { 'Content-Type': 'application/json' },
+        });
+
+        const data: any = await response.json();
+
+        if (!response.ok) {
+            return res.status(401).json({ message: 'Login failed', error: data.error?.message });
+        }
+
+        // Fetch user from DB to return with the token
+        const user = await User.findOne({ uid: data.localId });
+
+        res.json({
+            idToken: data.idToken,
+            refreshToken: data.refreshToken,
+            expiresIn: data.expiresIn,
+            user: user
+        });
+    } catch (err: any) {
+        console.error('Login Error:', err);
+        res.status(500).json({ message: 'Login failed', error: err.message });
+    }
+});
+
+// POST /auth/login/google-sync or /auth/sync — existing sync for Google OAuth
 // Creates user in DB if first time, updates if existing, and returns user data
 const syncUser = async (req: AuthRequest, res: Response) => {
     try {
@@ -47,7 +129,6 @@ const syncUser = async (req: AuthRequest, res: Response) => {
     }
 };
 
-router.post('/login', verifyToken, syncUser);
 router.post('/sync', verifyToken, syncUser);
 
 // GET /auth/me — returns current logged in user info

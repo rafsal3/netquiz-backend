@@ -41,13 +41,37 @@ When **receiving** a question from the API, the structure is:
 
 ### 🔐 Authentication
 
+#### `POST /auth/register`
+Creates a new user account with email and password in both Firebase and MongoDB.
+- **Request Body**:
+    ```json
+    {
+      "email": "user@example.com",
+      "password": "securePassword123",
+      "displayName": "John Doe"
+    }
+    ```
+- **Response**: `{ "message": "...", "uid": "...", "user": { ... } }`
+
 #### `POST /auth/login`
-Initializes user in the database.
+Authenticates a user and returns a Firebase ID Token for subsequent requests.
+- **Request Body**:
+    ```json
+    {
+      "email": "user@example.com",
+      "password": "securePassword123"
+    }
+    ```
+- **Response**: `{ "idToken": "...", "refreshToken": "...", "user": { ... } }`
+
+#### `POST /auth/sync`
+Initializes or updates the user profile in the database (used for Google OAuth or refreshing user data).
 - **Request Body**: `{ "displayName": "User Name" }`
 - **Response**: `{ "user": { "uid": "...", "role": "user", ... } }`
 
 #### `GET /auth/me`
-Checks current session and returns user profile.
+Returns the current logged-in user's profile information.
+- **Header**: `Authorization: Bearer <token>`
 
 ### 📚 Curriculum
 
