@@ -61,14 +61,29 @@ router.delete('/papers/:id', verifyToken, isAdmin, async (req: AuthRequest, res:
 // GET /curriculum/modules?paperId=
 router.get('/modules', async (req, res: Response) => {
     try {
-        const paperId = req.query.paperId as string;
+        const paperId = req.query.paperId as any;
+
+        const parseIds = (idParam: any): string[] => {
+            if (!idParam) return [];
+            let ids: string[] = [];
+            if (Array.isArray(idParam)) {
+                ids = idParam as string[];
+            } else if (typeof idParam === 'string') {
+                ids = idParam.split(',');
+            }
+            return ids
+                .map(id => id.trim())
+                .filter(id => id.length === 24 && Types.ObjectId.isValid(id));
+        };
+
+        const paperIds = parseIds(paperId);
         
-        // If paperId is provided but invalid (e.g. "[object Object]"), return empty array
-        if (paperId && (!Types.ObjectId.isValid(paperId) || paperId.length !== 24)) {
+        // If paperId is provided but no valid IDs found, return empty array
+        if (paperId && paperIds.length === 0) {
             return res.json({ modules: [] });
         }
 
-        const filter = paperId ? { paperId } : {};
+        const filter = paperIds.length > 0 ? { paperId: { $in: paperIds } } : {};
         const modules = await Module.find(filter).sort({ order: 1 });
         res.json({ modules });
     } catch (err) {
@@ -117,14 +132,29 @@ router.delete('/modules/:id', verifyToken, isAdmin, async (req: AuthRequest, res
 // GET /curriculum/submodules?moduleId=
 router.get('/submodules', async (req, res: Response) => {
     try {
-        const moduleId = req.query.moduleId as string;
+        const moduleId = req.query.moduleId as any;
 
-        // If moduleId is provided but invalid (e.g. "[object Object]"), return empty array
-        if (moduleId && (!Types.ObjectId.isValid(moduleId) || moduleId.length !== 24)) {
+        const parseIds = (idParam: any): string[] => {
+            if (!idParam) return [];
+            let ids: string[] = [];
+            if (Array.isArray(idParam)) {
+                ids = idParam as string[];
+            } else if (typeof idParam === 'string') {
+                ids = idParam.split(',');
+            }
+            return ids
+                .map(id => id.trim())
+                .filter(id => id.length === 24 && Types.ObjectId.isValid(id));
+        };
+
+        const moduleIds = parseIds(moduleId);
+
+        // If moduleId is provided but no valid IDs found, return empty array
+        if (moduleId && moduleIds.length === 0) {
             return res.json({ subModules: [] });
         }
 
-        const filter = moduleId ? { moduleId } : {};
+        const filter = moduleIds.length > 0 ? { moduleId: { $in: moduleIds } } : {};
         const subModules = await SubModule.find(filter).sort({ order: 1 });
         res.json({ subModules });
     } catch (err) {

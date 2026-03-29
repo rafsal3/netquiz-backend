@@ -15,18 +15,34 @@ router.get('/', verifyToken, async (req: AuthRequest, res: Response) => {
     try {
         const { paperId, moduleId, subModuleId, source, uncategorized } = req.query as any;
 
-        const isValidId = (id: any) => id && typeof id === 'string' && id.length === 24 && Types.ObjectId.isValid(id);
+        const parseIds = (idParam: any): string[] => {
+            if (!idParam) return [];
+            let ids: string[] = [];
+            if (Array.isArray(idParam)) {
+                ids = idParam;
+            } else if (typeof idParam === 'string') {
+                ids = idParam.split(',');
+            }
+            return ids
+                .map(id => id.trim())
+                .filter(id => id.length === 24 && Types.ObjectId.isValid(id));
+        };
 
-        // If any ID filter is provided but invalid, return empty results early
-        if (paperId && !isValidId(paperId)) return res.json({ questions: [] });
-        if (moduleId && !isValidId(moduleId)) return res.json({ questions: [] });
-        if (subModuleId && !isValidId(subModuleId)) return res.json({ questions: [] });
+        const paperIds = parseIds(paperId);
+        const moduleIds = parseIds(moduleId);
+        const subModuleIds = parseIds(subModuleId);
+
+        // If a filter was intended but no valid IDs found, return empty (consistent with previous behavior)
+        if (paperId && paperIds.length === 0) return res.json({ questions: [] });
+        if (moduleId && moduleIds.length === 0) return res.json({ questions: [] });
+        if (subModuleId && subModuleIds.length === 0) return res.json({ questions: [] });
 
         const filter: Record<string, any> = {};
 
-        if (paperId) filter.paperId = paperId;
-        if (moduleId) filter.moduleId = moduleId;
-        if (subModuleId) filter.subModuleId = subModuleId;
+        if (paperIds.length > 0) filter.paperId = { $in: paperIds };
+        if (moduleIds.length > 0) filter.moduleId = { $in: moduleIds };
+        if (subModuleIds.length > 0) filter.subModuleId = { $in: subModuleIds };
+        
         if (source) filter.source = source;
 
         // uncategorized = questions with no moduleId
