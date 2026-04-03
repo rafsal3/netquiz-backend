@@ -213,6 +213,84 @@ router.post('/', verifyToken, isAdmin, async (req: AuthRequest, res: Response) =
     }
 });
 
+// ─── POST /questions/bulk — admin only ────────────────
+router.post('/bulk', verifyToken, isAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+        const { questions } = req.body;
+
+        if (!Array.isArray(questions) || questions.length === 0) {
+            return res.status(400).json({ message: 'A non-empty array of questions is required' });
+        }
+
+        const isValidId = (id: any) => id && typeof id === 'string' && id.length === 24 && Types.ObjectId.isValid(id);
+
+        const preparedQuestions = questions.map((q: any) => {
+            let options = q.options;
+            let correct = q.correct;
+            
+            // Handle conversion if options is an array
+            if (Array.isArray(options)) {
+                options = {
+                    A: options[0] || '',
+                    B: options[1] || '',
+                    C: options[2] || '',
+                    D: options[3] || '',
+                };
+            }
+
+            // Handle conversion if correct is a number (0-3)
+            if (typeof correct === 'number') {
+                const mapping = ['A', 'B', 'C', 'D'];
+                correct = mapping[correct] || 'A';
+            }
+
+            // For strict validation of required fields:
+            if (!q.paperId || !isValidId(q.paperId)) {
+                throw new Error(`Valid paperId is required for question: "${q.text || 'Unknown'}"`);
+            }
+            if (!q.text) {
+                throw new Error('Question text is required for all questions');
+            }
+            if (!options) {
+                throw new Error(`Options are required for question: "${q.text}"`);
+            }
+            if (!correct) {
+                throw new Error(`Correct answer is required for question: "${q.text}"`);
+            }
+
+            return {
+                paperId: q.paperId,
+                moduleId: isValidId(q.moduleId) ? q.moduleId : undefined,
+                subModuleId: isValidId(q.subModuleId) ? q.subModuleId : undefined,
+                text: q.text,
+                imageUrl: q.imageUrl || undefined,
+                equation: q.equation || undefined,
+                options,
+                correct,
+                explanation: q.explanation || undefined,
+                source: 'admin',
+                createdBy: req.uid,
+            };
+        });
+
+        // Insert all prepared questions
+        const results = await Question.insertMany(preparedQuestions);
+
+        res.status(201).json({ 
+            message: 'Bulk questions added successfully',
+            count: results.length,
+            questions: results 
+        });
+    } catch (err: any) {
+        console.error('Error in bulk upload:', err);
+        res.status(400).json({
+            message: 'Bulk upload failed',
+            error: err.message || err,
+            details: err.errors
+        });
+    }
+});
+
 // ─── PUT /questions/:id — admin only ──────────────────
 router.put('/:id', verifyToken, isAdmin, async (req: AuthRequest, res: Response) => {
     try {
