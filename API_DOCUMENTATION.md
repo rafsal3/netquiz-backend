@@ -79,15 +79,20 @@ Returns the current logged-in user's profile information.
 Returns all papers sorted by order.
 
 #### `GET /curriculum/modules?paperId=<id>`
-Returns modules for a paper. If `paperId` is invalid/missing, returns all.
+Returns modules for a paper. Supports multiple `paperId` values (comma-separated or repeated param). If `paperId` is missing, returns all.
 
 #### `GET /curriculum/submodules?moduleId=<id>`
-Returns sub-modules for a module.
+Returns sub-modules for a module. Supports multiple `moduleId` values (comma-separated or repeated param).
 
 ### ❓ Questions
 
 #### `GET /questions`
-- **Query Params**: `paperId`, `moduleId`, `subModuleId`, `source` (admin/community), `uncategorized` (true/false)
+- **Query Params**: 
+  - `paperId`: Single ID or comma-separated list/array of IDs.
+  - `moduleId`: Single ID or comma-separated list/array of IDs.
+  - `subModuleId`: Single ID or comma-separated list/array of IDs.
+  - `source`: `admin` or `community`.
+  - `uncategorized`: `true` or `false`.
 - **Response**: `{ "questions": [...] }`
 
 #### `GET /questions/:id`

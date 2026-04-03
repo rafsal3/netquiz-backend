@@ -13,7 +13,7 @@ const router = Router();
 // Filters: paperId, moduleId, subModuleId, source (admin/community), uncategorized
 router.get('/', verifyToken, async (req: AuthRequest, res: Response) => {
     try {
-        const { paperId, moduleId, subModuleId, source, uncategorized } = req.query as any;
+        const { paperId, moduleId, subModuleId, source, uncategorized, page = '1', limit = '20' } = req.query as any;
 
         const parseIds = (idParam: any): string[] => {
             if (!idParam) return [];
@@ -50,14 +50,35 @@ router.get('/', verifyToken, async (req: AuthRequest, res: Response) => {
             filter.moduleId = { $exists: false };
         }
 
-        const questions = await Question.find(filter)
+        const pageNum = parseInt(page as string, 10) || 1;
+        const limitNum = req.query.limit !== undefined ? parseInt(limit as string, 10) : 20;
+        const skip = (pageNum - 1) * limitNum;
+
+        const query = Question.find(filter)
             .populate('paperId', 'name')
             .populate('moduleId', 'name')
             .populate('subModuleId', 'name')
             .populate('user', 'displayName email role')
             .sort({ createdAt: -1 });
+            
+        if (limitNum > 0) {
+            query.skip(skip).limit(limitNum);
+        }
 
-        res.json({ questions });
+        const [questions, total] = await Promise.all([
+            query,
+            Question.countDocuments(filter)
+        ]);
+
+        res.json({ 
+            questions,
+            pagination: {
+                total,
+                page: pageNum,
+                limit: limitNum,
+                totalPages: limitNum > 0 ? Math.ceil(total / limitNum) : 1,
+            }
+        });
     } catch (err) {
         res.status(500).json({ message: 'Server error', error: err });
     }
@@ -67,21 +88,41 @@ router.get('/', verifyToken, async (req: AuthRequest, res: Response) => {
 // Search questions by text
 router.get('/search', verifyToken, async (req: AuthRequest, res: Response) => {
     try {
-        const { q } = req.query;
+        const { q, page = '1', limit = '50' } = req.query as any;
         if (!q || typeof q !== 'string') {
             return res.json({ questions: [] });
         }
 
-        const questions = await Question.find({
-            text: { $regex: q, $options: 'i' }
-        })
+        const pageNum = parseInt(page as string, 10) || 1;
+        const limitNum = req.query.limit !== undefined ? parseInt(limit as string, 10) : 50;
+        const skip = (pageNum - 1) * limitNum;
+        
+        const filter = { text: { $regex: q, $options: 'i' } };
+
+        const query = Question.find(filter)
             .populate('paperId', 'name')
             .populate('moduleId', 'name')
             .populate('subModuleId', 'name')
-            .populate('user', 'displayName email role')
-            .limit(50);
+            .populate('user', 'displayName email role');
+            
+        if (limitNum > 0) {
+            query.skip(skip).limit(limitNum);
+        }
 
-        res.json({ questions });
+        const [questions, total] = await Promise.all([
+            query,
+            Question.countDocuments(filter)
+        ]);
+
+        res.json({ 
+            questions,
+            pagination: {
+                total,
+                page: pageNum,
+                limit: limitNum,
+                totalPages: limitNum > 0 ? Math.ceil(total / limitNum) : 1,
+            }
+        });
     } catch (err) {
         res.status(500).json({ message: 'Server error', error: err });
     }

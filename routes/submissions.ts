@@ -63,7 +63,7 @@ router.post('/', verifyToken, async (req: AuthRequest, res: Response) => {
 // Filters: status (pending/approved/rejected), paperId
 router.get('/', verifyToken, async (req: AuthRequest, res: Response) => {
     try {
-        const { status, paperId } = req.query;
+        const { status, paperId, page = '1', limit = '20' } = req.query as any;
 
         const filter: Record<string, any> = {};
         if (status) filter.status = status;
@@ -78,7 +78,11 @@ router.get('/', verifyToken, async (req: AuthRequest, res: Response) => {
             filter.submittedBy = req.uid;
         }
 
-        const submissions = await Submission.find(filter)
+        const pageNum = parseInt(page as string, 10) || 1;
+        const limitNum = req.query.limit !== undefined ? parseInt(limit as string, 10) : 20;
+        const skip = (pageNum - 1) * limitNum;
+
+        const query = Submission.find(filter)
             .populate('paperId', 'name')
             .populate('moduleId', 'name')
             .populate('subModuleId', 'name')
@@ -86,7 +90,24 @@ router.get('/', verifyToken, async (req: AuthRequest, res: Response) => {
             .populate('reviewer', 'displayName email')
             .sort({ createdAt: -1 });
 
-        res.json({ submissions });
+        if (limitNum > 0) {
+            query.skip(skip).limit(limitNum);
+        }
+
+        const [submissions, total] = await Promise.all([
+            query,
+            Submission.countDocuments(filter)
+        ]);
+
+        res.json({
+            submissions,
+            pagination: {
+                total,
+                page: pageNum,
+                limit: limitNum,
+                totalPages: limitNum > 0 ? Math.ceil(total / limitNum) : 1,
+            }
+        });
     } catch (err) {
         res.status(500).json({ message: 'Server error', error: err });
     }
