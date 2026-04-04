@@ -17,7 +17,7 @@ export interface IQuestion extends Document {
 }
 
 const QuestionSchema = new Schema<IQuestion>({
-    paperId: { type: Schema.Types.ObjectId, ref: 'Paper', required: true },
+    paperId: { type: Schema.Types.ObjectId, ref: 'Paper' },
     moduleId: { type: Schema.Types.ObjectId, ref: 'Module' },
     subModuleId: { type: Schema.Types.ObjectId, ref: 'SubModule' },
     text: { type: String, required: true },

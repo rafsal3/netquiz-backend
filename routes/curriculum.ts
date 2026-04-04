@@ -5,6 +5,8 @@ import { isAdmin } from '../middleware/isAdmin';
 import Paper from '../models/Paper';
 import Module from '../models/Module';
 import SubModule from '../models/SubModule';
+import Question from '../models/Question';
+
 
 const router = Router();
 
@@ -47,10 +49,36 @@ router.put('/papers/:id', verifyToken, isAdmin, async (req: AuthRequest, res: Re
 });
 
 // DELETE /curriculum/papers/:id — admin only
+// Query: questionsAction = 'delete' | 'uncategorize'
 router.delete('/papers/:id', verifyToken, isAdmin, async (req: AuthRequest, res: Response) => {
     try {
-        await Paper.findByIdAndDelete(req.params.id);
-        res.json({ message: 'Paper deleted' });
+        const { id } = req.params;
+        const { questionsAction } = req.query;
+
+        if (!questionsAction || !['delete', 'uncategorize'].includes(questionsAction as string)) {
+            return res.status(400).json({ message: 'questionsAction is required (delete or uncategorize)' });
+        }
+
+        // 1. Handle Questions
+        if (questionsAction === 'delete') {
+            await Question.deleteMany({ paperId: id });
+        } else if (questionsAction === 'uncategorize') {
+            // Unlink from paper, module, submodule
+            await Question.updateMany(
+                { paperId: id }, 
+                { $unset: { paperId: 1, moduleId: 1, subModuleId: 1 } }
+            );
+        }
+
+        // 2. Cascade delete curriculum elements
+        await Module.deleteMany({ paperId: id });
+        await SubModule.deleteMany({ paperId: id });
+
+        // 3. Delete Paper
+        const paper = await Paper.findByIdAndDelete(id);
+        if (!paper) return res.status(404).json({ message: 'Paper not found' });
+
+        res.json({ message: 'Paper and associated curriculum deleted successfully' });
     } catch (err) {
         res.status(500).json({ message: 'Server error', error: err });
     }
@@ -118,10 +146,35 @@ router.put('/modules/:id', verifyToken, isAdmin, async (req: AuthRequest, res: R
 });
 
 // DELETE /curriculum/modules/:id — admin only
+// Query: questionsAction = 'delete' | 'uncategorize'
 router.delete('/modules/:id', verifyToken, isAdmin, async (req: AuthRequest, res: Response) => {
     try {
-        await Module.findByIdAndDelete(req.params.id);
-        res.json({ message: 'Module deleted' });
+        const { id } = req.params;
+        const { questionsAction } = req.query;
+
+        if (!questionsAction || !['delete', 'uncategorize'].includes(questionsAction as string)) {
+            return res.status(400).json({ message: 'questionsAction is required (delete or uncategorize)' });
+        }
+
+        // 1. Handle Questions
+        if (questionsAction === 'delete') {
+            await Question.deleteMany({ moduleId: id });
+        } else if (questionsAction === 'uncategorize') {
+            // Unlink from module and submodule
+            await Question.updateMany(
+                { moduleId: id }, 
+                { $unset: { moduleId: 1, subModuleId: 1 } }
+            );
+        }
+
+        // 2. Cascade delete curriculum elements
+        await SubModule.deleteMany({ moduleId: id });
+
+        // 3. Delete Module
+        const module = await Module.findByIdAndDelete(id);
+        if (!module) return res.status(404).json({ message: 'Module not found' });
+
+        res.json({ message: 'Module and associated submodules deleted successfully' });
     } catch (err) {
         res.status(500).json({ message: 'Server error', error: err });
     }
@@ -189,10 +242,32 @@ router.put('/submodules/:id', verifyToken, isAdmin, async (req: AuthRequest, res
 });
 
 // DELETE /curriculum/submodules/:id — admin only
+// Query: questionsAction = 'delete' | 'uncategorize'
 router.delete('/submodules/:id', verifyToken, isAdmin, async (req: AuthRequest, res: Response) => {
     try {
-        await SubModule.findByIdAndDelete(req.params.id);
-        res.json({ message: 'SubModule deleted' });
+        const { id } = req.params;
+        const { questionsAction } = req.query;
+
+        if (!questionsAction || !['delete', 'uncategorize'].includes(questionsAction as string)) {
+            return res.status(400).json({ message: 'questionsAction is required (delete or uncategorize)' });
+        }
+
+        // 1. Handle Questions
+        if (questionsAction === 'delete') {
+            await Question.deleteMany({ subModuleId: id });
+        } else if (questionsAction === 'uncategorize') {
+            // Unlink from submodule only
+            await Question.updateMany(
+                { subModuleId: id }, 
+                { $unset: { subModuleId: 1 } }
+            );
+        }
+
+        // 2. Delete SubModule
+        const subModule = await SubModule.findByIdAndDelete(id);
+        if (!subModule) return res.status(404).json({ message: 'SubModule not found' });
+
+        res.json({ message: 'SubModule deleted successfully' });
     } catch (err) {
         res.status(500).json({ message: 'Server error', error: err });
     }
