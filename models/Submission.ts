@@ -9,6 +9,7 @@ export interface ISubmission extends Document {
     imageUrl?: string;
     equation?: string;
     options: { A: string; B: string; C: string; D: string };
+    questionOptions?: string;
     correct: 'A' | 'B' | 'C' | 'D';
     explanation?: string;
     status: 'pending' | 'approved' | 'rejected';
@@ -26,6 +27,7 @@ const SubmissionSchema = new Schema<ISubmission>({
     imageUrl: String,
     equation: String,
     options: { A: String, B: String, C: String, D: String },
+    questionOptions: String,
     correct: { type: String, enum: ['A', 'B', 'C', 'D'] },
     explanation: String,
     status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },

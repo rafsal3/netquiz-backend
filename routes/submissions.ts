@@ -14,7 +14,7 @@ router.post('/', verifyToken, async (req: AuthRequest, res: Response) => {
         let {
             paperId, moduleId, subModuleId,
             text, imageUrl, equation,
-            options, correct, explanation,
+            options, questionOptions, correct, explanation,
         } = req.body as any;
 
         // Handle conversion if options is an array
@@ -33,6 +33,11 @@ router.post('/', verifyToken, async (req: AuthRequest, res: Response) => {
             correct = mapping[correct] || 'A';
         }
 
+        // Handle questionOptions array if provided
+        if (Array.isArray(questionOptions)) {
+            questionOptions = questionOptions.join('\n');
+        }
+
         const isValidId = (id: any) => id && typeof id === 'string' && id.length === 24 && Types.ObjectId.isValid(id);
 
         if (!paperId || !text || !correct || !options) {
@@ -48,6 +53,7 @@ router.post('/', verifyToken, async (req: AuthRequest, res: Response) => {
             imageUrl: imageUrl || undefined,
             equation: equation || undefined,
             options,
+            questionOptions: questionOptions || undefined,
             correct,
             explanation: explanation || undefined,
             status: 'pending',
@@ -175,6 +181,7 @@ router.put('/:id/approve', verifyToken, isAdmin, async (req: AuthRequest, res: R
             imageUrl: submission.imageUrl,
             equation: submission.equation,
             options: submission.options,
+            questionOptions: submission.questionOptions,
             correct: submission.correct,
             explanation: submission.explanation,
             source: 'community',

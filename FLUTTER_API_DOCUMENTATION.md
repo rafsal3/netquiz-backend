@@ -66,6 +66,7 @@ The backend stores `options` as an object and keys them by A, B, C, D. Map them 
 class Question {
   final String id;
   final String text;
+  final String? questionOptions; // Internal list (a, b, c, d)
   final Map<String, String> options; // { "A": "...", "B": "...", ... }
   final String correctLabel; // "A", "B", "C", or "D"
   final String? explanation;
@@ -73,6 +74,7 @@ class Question {
   Question.fromJson(Map<String, dynamic> json)
       : id = json['_id'],
         text = json['text'],
+        questionOptions = json['questionOptions'],
         options = Map<String, String>.from(json['options']),
         correctLabel = json['correct'],
         explanation = json['explanation'];
@@ -91,9 +93,10 @@ If a user wants to contribute a question:
       "paperId": "...",
       "moduleId": "...",
       "subModuleId": "...",
-      "text": "...",
-      "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
-      "correct": 0, // Index 0-3 (0=A, 1=B, 2=C, 3=D)
+      "text": "Identify the correct items:",
+      "questionOptions": "a. Item 1\nb. Item 2\nc. Item 3",
+      "options": ["Only a", "Only b", "All of above", "None"],
+      "correct": 2, // Index 0-3 (0=A, 1=B, 2=C, 3=D)
       "explanation": "..."
     }
     ```

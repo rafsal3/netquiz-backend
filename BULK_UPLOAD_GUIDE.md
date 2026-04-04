@@ -65,6 +65,7 @@ Required fields you need to map:
 - **Option C**
 - **Option D**
 - **Correct Answer** (Needs to map to A, B, C, or 1,2,3... our API will handle converting 0-3 to A-D)
+- **Question Options (New)**: (Optional) A single column containing options like a, b, c, d (Intermediate options)
 - **Explanation** (Optional)
 
 In your JSX, you could render standard `<select>` inputs pointing to the `columns` options:
@@ -114,6 +115,7 @@ const handleUpload = async () => {
                 D: row[map.optionD]?.toString() || '',
             },
             correct: row[map.correctAnswer], // Validates on backend
+            questionOptions: row[map.questionOptions] || '',
             explanation: row[map.explanation] || ''
         };
     });

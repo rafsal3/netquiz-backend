@@ -154,7 +154,7 @@ router.post('/', verifyToken, isAdmin, async (req: AuthRequest, res: Response) =
         let {
             paperId, moduleId, subModuleId,
             text, imageUrl, equation,
-            options, correct, explanation,
+            options, questionOptions, correct, explanation,
         } = req.body;
 
         // Handle conversion if options is an array
@@ -165,6 +165,11 @@ router.post('/', verifyToken, isAdmin, async (req: AuthRequest, res: Response) =
                 C: options[2] || '',
                 D: options[3] || '',
             };
+        }
+
+        // Handle conversion if questionOptions is an array (join with newlines)
+        if (Array.isArray(questionOptions)) {
+            questionOptions = questionOptions.join('\n');
         }
 
         // Handle conversion if correct is a number (0-3)
@@ -196,6 +201,7 @@ router.post('/', verifyToken, isAdmin, async (req: AuthRequest, res: Response) =
             imageUrl: imageUrl || undefined,
             equation: equation || undefined,
             options,
+            questionOptions: questionOptions || undefined,
             correct,
             explanation: explanation || undefined,
             source: 'admin',
@@ -226,6 +232,7 @@ router.post('/bulk', verifyToken, isAdmin, async (req: AuthRequest, res: Respons
 
         const preparedQuestions = questions.map((q: any) => {
             let options = q.options;
+            let questionOptions = q.questionOptions;
             let correct = q.correct;
             
             // Handle conversion if options is an array
@@ -236,6 +243,11 @@ router.post('/bulk', verifyToken, isAdmin, async (req: AuthRequest, res: Respons
                     C: options[2] || '',
                     D: options[3] || '',
                 };
+            }
+
+            // Handle conversion if questionOptions is an array
+            if (Array.isArray(questionOptions)) {
+                questionOptions = questionOptions.join('\n');
             }
 
             // Handle conversion if correct is a number (0-3)
@@ -266,6 +278,7 @@ router.post('/bulk', verifyToken, isAdmin, async (req: AuthRequest, res: Respons
                 imageUrl: q.imageUrl || undefined,
                 equation: q.equation || undefined,
                 options,
+                questionOptions: questionOptions || undefined,
                 correct,
                 explanation: q.explanation || undefined,
                 source: 'admin',

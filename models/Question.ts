@@ -8,6 +8,7 @@ export interface IQuestion extends Document {
     imageUrl?: string;
     equation?: string;
     options: { A: string; B: string; C: string; D: string };
+    questionOptions?: string;
     correct: 'A' | 'B' | 'C' | 'D';
     explanation?: string;
     source: 'admin' | 'community';
@@ -24,6 +25,7 @@ const QuestionSchema = new Schema<IQuestion>({
     imageUrl: String,
     equation: String,
     options: { A: String, B: String, C: String, D: String },
+    questionOptions: String,
     correct: { type: String, enum: ['A', 'B', 'C', 'D'], required: true },
     explanation: String,
     source: { type: String, enum: ['admin', 'community'], default: 'admin' },
