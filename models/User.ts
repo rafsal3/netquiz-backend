@@ -4,6 +4,7 @@ const UserSchema = new Schema({
     uid: { type: String, required: true, unique: true },
     email: String,
     displayName: String,
+    photoURL: String,
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
     createdAt: { type: Date, default: Date.now },
 });

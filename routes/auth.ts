@@ -29,6 +29,7 @@ router.post('/register', async (req: Request, res: Response) => {
             uid: userRecord.uid,
             email: userRecord.email,
             displayName: userRecord.displayName ?? '',
+            photoURL: userRecord.photoURL ?? '',
             role: role,
         });
 
@@ -91,7 +92,7 @@ router.post('/login', async (req: Request, res: Response) => {
 const syncUser = async (req: AuthRequest, res: Response) => {
     try {
         const { uid, email } = req;
-        const { displayName } = req.body;
+        const { displayName, photoURL } = req.body;
 
         if (!uid) return res.status(401).json({ message: 'No UID found in token' });
 
@@ -106,6 +107,7 @@ const syncUser = async (req: AuthRequest, res: Response) => {
                 uid,
                 email,
                 displayName: displayName ?? '',
+                photoURL: photoURL ?? '',
                 role: role,
             });
             console.log(`New user created: ${uid}`);
@@ -113,6 +115,7 @@ const syncUser = async (req: AuthRequest, res: Response) => {
             // Update existing user info
             user.email = email || user.email;
             if (displayName) user.displayName = displayName;
+            if (photoURL) user.photoURL = photoURL;
             
             // Only update role if it's currently 'user' but they are in the admin list
             if (user.role === 'user' && role === 'admin') {
@@ -130,6 +133,48 @@ const syncUser = async (req: AuthRequest, res: Response) => {
 };
 
 router.post('/sync', verifyToken, syncUser);
+
+// PATCH /auth/profile — update user profile (name, photoURL, password)
+router.patch('/profile', verifyToken, async (req: AuthRequest, res: Response) => {
+    try {
+        const { displayName, photoURL, password } = req.body;
+        const uid = req.uid;
+
+        if (!uid) return res.status(401).json({ message: 'No UID found in token' });
+
+        // 1. Update in Firebase
+        const updateData: any = {};
+        if (displayName) updateData.displayName = displayName;
+        if (photoURL) updateData.photoURL = photoURL;
+        if (password) updateData.password = password;
+
+        if (Object.keys(updateData).length === 0) {
+            return res.status(400).json({ message: 'No fields provided for update' });
+        }
+
+        await admin.auth().updateUser(uid, updateData);
+
+        // 2. Update in MongoDB
+        const user = await User.findOneAndUpdate(
+            { uid },
+            { 
+                $set: { 
+                    ...(displayName && { displayName }), 
+                    ...(photoURL && { photoURL }) 
+                } 
+            },
+            { new: true }
+        );
+
+        res.json({ 
+            message: 'Profile updated successfully', 
+            user 
+        });
+    } catch (err: any) {
+        console.error('Profile Update Error:', err);
+        res.status(500).json({ message: 'Profile update failed', error: err.message });
+    }
+});
 
 // GET /auth/me — returns current logged in user info
 router.get('/me', verifyToken, async (req: AuthRequest, res: Response) => {
