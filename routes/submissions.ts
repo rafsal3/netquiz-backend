@@ -149,9 +149,32 @@ router.get('/:id', verifyToken, async (req: AuthRequest, res: Response) => {
 // ─── PUT /submissions/:id — admin edit before approving ─
 router.put('/:id', verifyToken, isAdmin, async (req: AuthRequest, res: Response) => {
     try {
+        const updateData = { ...req.body };
+        
+        // Handle conversion if options is an array
+        if (Array.isArray(updateData.options)) {
+            updateData.options = {
+                A: updateData.options[0] || '',
+                B: updateData.options[1] || '',
+                C: updateData.options[2] || '',
+                D: updateData.options[3] || '',
+            };
+        }
+
+        // Handle conversion if questionOptions is an array
+        if (Array.isArray(updateData.questionOptions)) {
+            updateData.questionOptions = updateData.questionOptions.join('\n');
+        }
+
+        // Handle conversion if correct is a number (0-3)
+        if (typeof updateData.correct === 'number') {
+            const mapping = ['A', 'B', 'C', 'D'];
+            updateData.correct = mapping[updateData.correct] || 'A';
+        }
+
         const submission = await Submission.findByIdAndUpdate(
             req.params.id,
-            { $set: req.body },
+            { $set: updateData },
             { new: true }
         );
         if (!submission) return res.status(404).json({ message: 'Submission not found' });

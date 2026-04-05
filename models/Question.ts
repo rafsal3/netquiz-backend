@@ -25,7 +25,7 @@ const QuestionSchema = new Schema<IQuestion>({
     imageUrl: String,
     equation: String,
     options: { A: String, B: String, C: String, D: String },
-    questionOptions: String,
+    questionOptions: { type: String, default: '' },
     correct: { type: String, enum: ['A', 'B', 'C', 'D'], required: true },
     explanation: String,
     source: { type: String, enum: ['admin', 'community'], default: 'admin' },

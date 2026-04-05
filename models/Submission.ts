@@ -27,7 +27,7 @@ const SubmissionSchema = new Schema<ISubmission>({
     imageUrl: String,
     equation: String,
     options: { A: String, B: String, C: String, D: String },
-    questionOptions: String,
+    questionOptions: { type: String, default: '' },
     correct: { type: String, enum: ['A', 'B', 'C', 'D'] },
     explanation: String,
     status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },

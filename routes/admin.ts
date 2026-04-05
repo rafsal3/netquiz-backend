@@ -148,7 +148,7 @@ router.delete('/users/:uid', async (req: AuthRequest, res: Response) => {
 router.get('/users/:uid/progress', async (req: AuthRequest, res: Response) => {
     try {
         const progress = await Progress.findOne({ uid: req.params.uid })
-            .populate('questions.questionId', 'text paperId moduleId');
+            .populate('questions.questionId', 'text paperId moduleId questionOptions');
 
         if (!progress) {
             return res.json({
