@@ -125,12 +125,56 @@ const syncUser = async (req: AuthRequest, res: Response) => {
             await user.save();
         }
 
-        res.json({ user });
+        res.json({ 
+            user,
+            refreshToken: req.body.refreshToken || null 
+        });
     } catch (err) {
         console.error('Auth Sync Error:', err);
         res.status(500).json({ message: 'Server error', error: err });
     }
 };
+
+// POST /auth/refresh — refresh an expired ID token using a refresh token
+router.post('/refresh', async (req: Request, res: Response) => {
+    try {
+        const { refreshToken } = req.body;
+        const apiKey = process.env.FIREBASE_API_KEY;
+
+        if (!apiKey) {
+            return res.status(500).json({ message: 'Server configuration error: FIREBASE_API_KEY is missing' });
+        }
+
+        if (!refreshToken) {
+            return res.status(400).json({ message: 'Refresh token is required' });
+        }
+
+        // Call Firebase Secure Token service to refresh the token
+        const response = await fetch(`https://securetoken.googleapis.com/v1/token?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                grant_type: 'refresh_token',
+                refresh_token: refreshToken,
+            }),
+        });
+
+        const data: any = await response.json();
+
+        if (!response.ok) {
+            return res.status(401).json({ message: 'Token refresh failed', error: data.error?.message });
+        }
+
+        res.json({
+            idToken: data.id_token,
+            refreshToken: data.refresh_token,
+            expiresIn: data.expires_in,
+        });
+    } catch (err: any) {
+        console.error('Refresh Error:', err);
+        res.status(500).json({ message: 'Refresh failed', error: err.message });
+    }
+});
 
 router.post('/sync', verifyToken, syncUser);
 
