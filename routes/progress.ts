@@ -19,6 +19,7 @@ router.get('/me', verifyToken, async (req: AuthRequest, res: Response) => {
                 activeDates: [],
                 lastActiveDate: null,
                 totalPoints: 0,
+                level: 1,
                 lastSyncedAt: null,
             });
         }
@@ -49,6 +50,7 @@ router.post('/sync', verifyToken, async (req: AuthRequest, res: Response) => {
                 avgTime: number;
             }[];
             lastActiveDate: string;
+            level?: number;
         } = req.body;
 
         if (!questions || !Array.isArray(questions)) {
@@ -65,6 +67,7 @@ router.post('/sync', verifyToken, async (req: AuthRequest, res: Response) => {
                 streak: 0,
                 activeDates: [],
                 totalPoints: 0,
+                level: 1,
                 lastActiveDate: null,
             });
         }
@@ -145,6 +148,11 @@ router.post('/sync', verifyToken, async (req: AuthRequest, res: Response) => {
         progress.lastActiveDate = new Date(lastActiveDate ?? Date.now());
         progress.lastSyncedAt = new Date();
 
+        // ─── Level calculation ────────────────────────────
+        if (level && level > (progress.level || 1)) {
+            progress.level = level;
+        }
+
         await progress.save();
 
         res.json({
@@ -152,6 +160,7 @@ router.post('/sync', verifyToken, async (req: AuthRequest, res: Response) => {
             streak: progress.streak,
             activeDates: progress.activeDates,
             totalPoints: progress.totalPoints,
+            level: progress.level || 1,
             lastSyncedAt: progress.lastSyncedAt,
         });
     } catch (err) {
@@ -176,6 +185,7 @@ router.get('/stats', verifyToken, async (req: AuthRequest, res: Response) => {
                 streak: 0,
                 activeDates: [],
                 points: 0,
+                level: 1,
             });
         }
 
@@ -205,6 +215,7 @@ router.get('/stats', verifyToken, async (req: AuthRequest, res: Response) => {
             streak: progress.streak,
             activeDates: progress.activeDates || [],
             points: progress.totalPoints,
+            level: progress.level || 1,
         });
     } catch (err) {
         res.status(500).json({ message: 'Server error', error: err });

@@ -180,6 +180,7 @@ Returns a global leaderboard of users ranked by total points (descending). Alway
 | `leaderboard[].totalPoints` | integer        | Total points earned (10 pts per correct answer synced)                   |
 | `leaderboard[].streak`      | integer        | Current daily activity streak                                            |
 | `total`                     | integer        | Total number of ranked users (all users with `totalPoints > 0`)          |
+| `level`                     | integer        | User's current level (returned in stats and sync)                        |
 | `myRank`                    | object \| null | Calling user's own rank entry. `null` if the user has 0 points           |
 
 - **Error Responses**:

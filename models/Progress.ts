@@ -17,6 +17,7 @@ const ProgressSchema = new Schema({
     activeDates: { type: [String], default: [] }, // Array of 'YYYY-MM-DD'
     lastActiveDate: Date,
     totalPoints: { type: Number, default: 0 },
+    level: { type: Number, default: 1 },
     lastSyncedAt: Date,
 }, { timestamps: true });
 
