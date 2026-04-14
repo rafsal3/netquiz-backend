@@ -123,6 +123,26 @@ Use this for the user's dashboard progress cards:
 
 ---
 
+## 🏆 Leaderboard (Global Rankings)
+
+Fetch the global leaderboard ranked by total points:
+- **`GET /progress/leaderboard?limit=50`**
+- **Response**: Top N users + the calling user's own rank (always included even if outside top N).
+
+```json
+{
+  "leaderboard": [
+    { "rank": 1, "uid": "...", "displayName": "Alice", "photoURL": "...", "totalPoints": 4200, "streak": 14 }
+  ],
+  "total": 312,
+  "myRank": { "rank": 47, "uid": "...", "displayName": "You", "photoURL": null, "totalPoints": 830, "streak": 3 }
+}
+```
+
+> 📄 See **[LEADERBOARD_API_GUIDE.md](./LEADERBOARD_API_GUIDE.md)** for full Dart models, service code, and UI integration tips.
+
+---
+
 ## ⚡ Performance Tips
 1.  **Batch Syncing**: Don't sync after every single question. Batch them and sync when the user finishes a set or leaves the quiz screen.
 2.  **Exponential Backoff**: If a sync fails, retry with increasing intervals to preserve battery and handle temporary outages.

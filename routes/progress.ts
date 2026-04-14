@@ -194,4 +194,71 @@ router.get('/stats', verifyToken, async (req: AuthRequest, res: Response) => {
     }
 });
 
-export default router;
+// ─── GET /progress/leaderboard ────────────────────────
+// Returns a ranked list of users sorted by totalPoints (descending).
+// Query params:
+//   limit  – max entries to return (default 50, max 200)
+// Response includes:
+//   leaderboard  – array of ranked entries
+//   myRank       – the calling user's rank & stats (always included)
+router.get('/leaderboard', verifyToken, async (req: AuthRequest, res: Response) => {
+    try {
+        const limit = Math.min(Number(req.query.limit) || 50, 200);
+
+        // Aggregate: sort by totalPoints, join User for profile info
+        const leaderboard = await Progress.aggregate([
+            {
+                $match: { totalPoints: { $gt: 0 } }, // only users who have points
+            },
+            {
+                $sort: { totalPoints: -1 },
+            },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'uid',
+                    foreignField: 'uid',
+                    as: 'userInfo',
+                },
+            },
+            {
+                $unwind: {
+                    path: '$userInfo',
+                    preserveNullAndEmptyArrays: true, // keep users even without a User doc
+                },
+            },
+            {
+                $project: {
+                    _id: 0,
+                    uid: 1,
+                    totalPoints: 1,
+                    streak: 1,
+                    displayName: { $ifNull: ['$userInfo.displayName', 'Anonymous'] },
+                    photoURL: { $ifNull: ['$userInfo.photoURL', null] },
+                },
+            },
+        ]);
+
+        // Assign rank (1-based)
+        const ranked = leaderboard.map((entry, index) => ({
+            rank: index + 1,
+            ...entry,
+        }));
+
+        // Find calling user's position in the full ranked list
+        const myEntry = ranked.find((entry) => entry.uid === req.uid);
+
+        // Return only the top `limit` entries for the leaderboard display
+        const topEntries = ranked.slice(0, limit);
+
+        res.json({
+            leaderboard: topEntries,
+            total: ranked.length,
+            myRank: myEntry ?? null, // null if user has 0 points (not in list)
+        });
+    } catch (err) {
+        res.status(500).json({ message: 'Server error', error: err });
+    }
+});
+
+export default router;
