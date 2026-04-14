@@ -14,6 +14,7 @@ const ProgressSchema = new Schema({
     uid: { type: String, required: true, unique: true },
     questions: [QuestionProgressSchema],
     streak: { type: Number, default: 0 },
+    activeDates: { type: [String], default: [] }, // Array of 'YYYY-MM-DD'
     lastActiveDate: Date,
     totalPoints: { type: Number, default: 0 },
     lastSyncedAt: Date,

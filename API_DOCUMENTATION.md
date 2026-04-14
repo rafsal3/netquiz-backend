@@ -117,6 +117,78 @@ Submit a question for community review.
     ```
     *Note: The backend converts the options array to the A/B/C/D object automatically.*
 
+### 🏆 Leaderboard
+
+#### `GET /progress/leaderboard`
+Returns a global leaderboard of users ranked by total points (descending). Always includes the calling user's own rank, even if they fall outside the requested limit.
+
+- **Auth**: `Authorization: Bearer <token>` *(required)*
+- **Query Params**:
+
+| Param   | Type    | Default | Max | Description                    |
+|---------|---------|---------|-----|--------------------------------|
+| `limit` | integer | `50`    | `200` | Number of top entries to return |
+
+- **Example Request**:
+    ```
+    GET /progress/leaderboard?limit=20
+    Authorization: Bearer <firebase_id_token>
+    ```
+
+- **Success Response** `200 OK`:
+    ```json
+    {
+      "leaderboard": [
+        {
+          "rank": 1,
+          "uid": "firebase_uid_abc123",
+          "displayName": "Alice",
+          "photoURL": "https://lh3.googleusercontent.com/a/photo.jpg",
+          "totalPoints": 4200,
+          "streak": 14
+        },
+        {
+          "rank": 2,
+          "uid": "firebase_uid_def456",
+          "displayName": "Bob",
+          "photoURL": null,
+          "totalPoints": 3750,
+          "streak": 7
+        }
+      ],
+      "total": 312,
+      "myRank": {
+        "rank": 47,
+        "uid": "firebase_uid_me789",
+        "displayName": "John Doe",
+        "photoURL": null,
+        "totalPoints": 830,
+        "streak": 3
+      }
+    }
+    ```
+
+- **Response Fields**:
+
+| Field                       | Type           | Description                                                              |
+|-----------------------------|----------------|--------------------------------------------------------------------------|
+| `leaderboard`               | array          | Top N users sorted by `totalPoints` descending                           |
+| `leaderboard[].rank`        | integer        | 1-based rank position                                                    |
+| `leaderboard[].uid`         | string         | Firebase UID                                                             |
+| `leaderboard[].displayName` | string         | User display name (falls back to `"Anonymous"` if not set)               |
+| `leaderboard[].photoURL`    | string \| null | Profile picture URL (null if not available)                              |
+| `leaderboard[].totalPoints` | integer        | Total points earned (10 pts per correct answer synced)                   |
+| `leaderboard[].streak`      | integer        | Current daily activity streak                                            |
+| `total`                     | integer        | Total number of ranked users (all users with `totalPoints > 0`)          |
+| `myRank`                    | object \| null | Calling user's own rank entry. `null` if the user has 0 points           |
+
+- **Error Responses**:
+
+| Status | Reason |
+|--------|--------|
+| `401`  | Missing or invalid Firebase token |
+| `500`  | Internal server error |
+
 ---
 
 ## 🛠 Admin APIs

@@ -16,6 +16,7 @@ router.get('/me', verifyToken, async (req: AuthRequest, res: Response) => {
                 uid: req.uid,
                 questions: [],
                 streak: 0,
+                activeDates: [],
                 lastActiveDate: null,
                 totalPoints: 0,
                 lastSyncedAt: null,
@@ -62,6 +63,7 @@ router.post('/sync', verifyToken, async (req: AuthRequest, res: Response) => {
                 uid,
                 questions: [],
                 streak: 0,
+                activeDates: [],
                 totalPoints: 0,
                 lastActiveDate: null,
             });
@@ -98,6 +100,18 @@ router.post('/sync', verifyToken, async (req: AuthRequest, res: Response) => {
         // ─── Streak calculation ────────────────────────────
         const today = new Date();
         today.setHours(0, 0, 0, 0);
+
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        const todayStr = `${yyyy}-${mm}-${dd}`;
+
+        if (!progress.activeDates) {
+            progress.activeDates = [];
+        }
+        if (!progress.activeDates.includes(todayStr)) {
+            progress.activeDates.push(todayStr);
+        }
 
         const lastActive = progress.lastActiveDate
             ? new Date(progress.lastActiveDate)
@@ -136,6 +150,7 @@ router.post('/sync', verifyToken, async (req: AuthRequest, res: Response) => {
         res.json({
             message: 'Progress synced',
             streak: progress.streak,
+            activeDates: progress.activeDates,
             totalPoints: progress.totalPoints,
             lastSyncedAt: progress.lastSyncedAt,
         });
@@ -159,6 +174,7 @@ router.get('/stats', verifyToken, async (req: AuthRequest, res: Response) => {
                 accuracy: 0,
                 avgTime: 0,
                 streak: 0,
+                activeDates: [],
                 points: 0,
             });
         }
@@ -187,6 +203,7 @@ router.get('/stats', verifyToken, async (req: AuthRequest, res: Response) => {
             accuracy,
             avgTime,
             streak: progress.streak,
+            activeDates: progress.activeDates || [],
             points: progress.totalPoints,
         });
     } catch (err) {
