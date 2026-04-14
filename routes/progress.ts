@@ -40,6 +40,7 @@ router.post('/sync', verifyToken, async (req: AuthRequest, res: Response) => {
         const {
             questions,
             lastActiveDate,
+            level,
         }: {
             questions: {
                 questionId: string;
