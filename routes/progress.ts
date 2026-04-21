@@ -20,11 +20,20 @@ router.get('/me', verifyToken, async (req: AuthRequest, res: Response) => {
                 lastActiveDate: null,
                 totalPoints: 0,
                 level: 1,
+                lastDailyQuizDate: "",
                 lastSyncedAt: null,
             });
         }
+        
+        const todayStr = new Date().toISOString().split('T')[0];
+        const isDailyQuizCompleted = progress.lastDailyQuizDate === todayStr;
 
-        res.json({ progress });
+        res.json({ 
+            progress: {
+                ...progress.toObject(),
+                isDailyQuizCompleted
+            } 
+        });
     } catch (err) {
         res.status(500).json({ message: 'Server error', error: err });
     }
@@ -217,6 +226,7 @@ router.get('/stats', verifyToken, async (req: AuthRequest, res: Response) => {
             activeDates: progress.activeDates || [],
             points: progress.totalPoints,
             level: progress.level || 1,
+            isDailyQuizCompleted: progress.lastDailyQuizDate === new Date().toISOString().split('T')[0],
         });
     } catch (err) {
         res.status(500).json({ message: 'Server error', error: err });
@@ -290,4 +300,27 @@ router.get('/leaderboard', verifyToken, async (req: AuthRequest, res: Response) 
     }
 });
 
-export default router;
+// ─── Patch /progress/daily-quiz ───────────────────────
+// Marks today's daily quiz as completed
+router.patch('/daily-quiz', verifyToken, async (req: AuthRequest, res: Response) => {
+    try {
+        const uid = req.uid!;
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        const progress = await Progress.findOneAndUpdate(
+            { uid },
+            { $set: { lastDailyQuizDate: todayStr } },
+            { new: true, upsert: true }
+        );
+
+        res.json({
+            message: 'Daily quiz status updated',
+            lastDailyQuizDate: progress.lastDailyQuizDate,
+            isDailyQuizCompleted: true
+        });
+    } catch (err) {
+        res.status(500).json({ message: 'Server error', error: err });
+    }
+});
+
+export default router;

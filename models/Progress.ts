@@ -18,6 +18,7 @@ const ProgressSchema = new Schema({
     lastActiveDate: Date,
     totalPoints: { type: Number, default: 0 },
     level: { type: Number, default: 1 },
+    lastDailyQuizDate: { type: String, default: "" }, // 'YYYY-MM-DD' format
     lastSyncedAt: Date,
 }, { timestamps: true });
 
