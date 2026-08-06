@@ -14,6 +14,7 @@ import questionRoutes from './routes/questions';
 import submissionRoutes from './routes/submissions';
 import progressRoutes from './routes/progress';
 import adminRoutes from './routes/admin';
+import dailyQuizRoutes from './routes/dailyQuiz';
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use('/questions', questionRoutes);
 app.use('/submissions', submissionRoutes);
 app.use('/progress', progressRoutes);
 app.use('/admin', adminRoutes);
+app.use('/daily-quiz', dailyQuizRoutes);
 
 const PORT = process.env.PORT || 5001;
 
