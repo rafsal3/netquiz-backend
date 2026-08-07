@@ -33,10 +33,37 @@ router.post('/register', async (req: Request, res: Response) => {
             role: role,
         });
 
+        // 3. Authenticate user to get tokens if FIREBASE_API_KEY is available
+        let idToken: string | undefined;
+        let refreshToken: string | undefined;
+        let expiresIn: string | undefined;
+
+        const apiKey = process.env.FIREBASE_API_KEY;
+        if (apiKey) {
+            try {
+                const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`, {
+                    method: 'POST',
+                    body: JSON.stringify({ email, password, returnSecureToken: true }),
+                    headers: { 'Content-Type': 'application/json' },
+                });
+                const data: any = await response.json();
+                if (response.ok) {
+                    idToken = data.idToken;
+                    refreshToken = data.refreshToken;
+                    expiresIn = data.expiresIn;
+                }
+            } catch (tokenErr) {
+                console.warn('Post-registration token fetch warning:', tokenErr);
+            }
+        }
+
         res.status(201).json({ 
             message: 'User registered successfully', 
             uid: userRecord.uid,
-            user 
+            user,
+            ...(idToken && { idToken }),
+            ...(refreshToken && { refreshToken }),
+            ...(expiresIn && { expiresIn }),
         });
     } catch (err: any) {
         console.error('Registration Error:', err);
