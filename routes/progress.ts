@@ -82,11 +82,15 @@ router.post('/sync', verifyToken, async (req: AuthRequest, res: Response) => {
             });
         }
 
+        let pointsDelta = 0;
+
         // Merge incoming questions into existing progress
         for (const incoming of questions) {
             const existingIndex = progress.questions.findIndex(
                 (q) => q.questionId.toString() === incoming.questionId
             );
+
+            const incomingCorrect = incoming.correct ?? 0;
 
             if (existingIndex > -1) {
                 // Update existing question progress
@@ -94,16 +98,21 @@ router.post('/sync', verifyToken, async (req: AuthRequest, res: Response) => {
                 const existing = progress.questions[existingIndex];
                 existing.status = incoming.status;
                 existing.attempts = Math.max(existing.attempts, incoming.attempts);
-                existing.correct = Math.max(existing.correct, incoming.correct);
+                
+                const additionalCorrect = Math.max(0, incomingCorrect - existing.correct);
+                pointsDelta += additionalCorrect * 10;
+                
+                existing.correct = Math.max(existing.correct, incomingCorrect);
                 existing.lastSeen = new Date(incoming.lastSeen);
                 existing.avgTime = incoming.avgTime;
             } else {
                 // New question — push it
+                pointsDelta += incomingCorrect * 10;
                 progress.questions.push({
                     questionId: incoming.questionId as any,
                     status: incoming.status,
                     attempts: incoming.attempts,
-                    correct: incoming.correct,
+                    correct: incomingCorrect,
                     lastSeen: new Date(incoming.lastSeen),
                     avgTime: incoming.avgTime,
                 });
@@ -151,11 +160,10 @@ router.post('/sync', verifyToken, async (req: AuthRequest, res: Response) => {
         }
 
         // ─── Points calculation ────────────────────────────
-        // 10 points per correct answer tracked in this sync
-        const newCorrects = questions.reduce((sum, q) => sum + (q.correct ?? 0), 0);
-        progress.totalPoints += newCorrects * 10;
+        // 10 points per newly gained correct answer
+        progress.totalPoints += pointsDelta;
 
-        progress.lastActiveDate = new Date(lastActiveDate ?? Date.now());
+        progress.lastActiveDate = new Date();
         progress.lastSyncedAt = new Date();
 
         // ─── Level calculation ────────────────────────────

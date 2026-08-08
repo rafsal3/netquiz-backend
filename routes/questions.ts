@@ -97,7 +97,8 @@ router.get('/search', verifyToken, async (req: AuthRequest, res: Response) => {
         const limitNum = req.query.limit !== undefined ? parseInt(limit as string, 10) : 50;
         const skip = (pageNum - 1) * limitNum;
         
-        const filter = { text: { $regex: q, $options: 'i' } };
+        const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const filter = { text: { $regex: escaped, $options: 'i' } };
 
         const query = Question.find(filter)
             .populate('paperId', 'name')
@@ -307,27 +308,46 @@ router.post('/bulk', verifyToken, isAdmin, async (req: AuthRequest, res: Respons
 // ─── PUT /questions/:id — admin only ──────────────────
 router.put('/:id', verifyToken, isAdmin, async (req: AuthRequest, res: Response) => {
     try {
-        const updateData = { ...req.body };
+        // Whitelist allowed fields
+        const { paperId, moduleId, subModuleId, text, imageUrl, equation, options, questionOptions, correct, explanation } = req.body;
+        const updateData: Record<string, any> = {};
+        if (paperId !== undefined) updateData.paperId = paperId;
+        if (moduleId !== undefined) updateData.moduleId = moduleId;
+        if (subModuleId !== undefined) updateData.subModuleId = subModuleId;
+        if (text !== undefined) updateData.text = text;
+        if (imageUrl !== undefined) updateData.imageUrl = imageUrl;
+        if (equation !== undefined) updateData.equation = equation;
+        if (explanation !== undefined) updateData.explanation = explanation;
         
         // Handle conversion if options is an array
-        if (Array.isArray(updateData.options)) {
-            updateData.options = {
-                A: updateData.options[0] || '',
-                B: updateData.options[1] || '',
-                C: updateData.options[2] || '',
-                D: updateData.options[3] || '',
-            };
+        if (options !== undefined) {
+            if (Array.isArray(options)) {
+                updateData.options = {
+                    A: options[0] || '',
+                    B: options[1] || '',
+                    C: options[2] || '',
+                    D: options[3] || '',
+                };
+            } else {
+                updateData.options = options;
+            }
         }
 
         // Handle conversion if questionOptions is an array
-        if (Array.isArray(updateData.questionOptions)) {
-            updateData.questionOptions = updateData.questionOptions.join('\n');
+        if (questionOptions !== undefined) {
+            updateData.questionOptions = Array.isArray(questionOptions) 
+                ? questionOptions.join('\n') 
+                : questionOptions;
         }
 
         // Handle conversion if correct is a number (0-3)
-        if (typeof updateData.correct === 'number') {
-            const mapping = ['A', 'B', 'C', 'D'];
-            updateData.correct = mapping[updateData.correct] || 'A';
+        if (correct !== undefined) {
+            if (typeof correct === 'number') {
+                const mapping = ['A', 'B', 'C', 'D'];
+                updateData.correct = mapping[correct] || 'A';
+            } else {
+                updateData.correct = correct;
+            }
         }
 
         const question = await Question.findByIdAndUpdate(
@@ -345,7 +365,8 @@ router.put('/:id', verifyToken, isAdmin, async (req: AuthRequest, res: Response)
 // ─── DELETE /questions/:id — admin only ───────────────
 router.delete('/:id', verifyToken, isAdmin, async (req: AuthRequest, res: Response) => {
     try {
-        await Question.findByIdAndDelete(req.params.id);
+        const question = await Question.findByIdAndDelete(req.params.id);
+        if (!question) return res.status(404).json({ message: 'Question not found' });
         res.json({ message: 'Question deleted' });
     } catch (err) {
         res.status(500).json({ message: 'Server error', error: err });
