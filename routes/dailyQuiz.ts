@@ -187,8 +187,8 @@ router.get("/", verifyToken, async (req: AuthRequest, res: Response) => {
                 status: !existing
                     ? "not_started"
                     : existing.completed
-                    ? "completed"
-                    : "in_progress",
+                        ? "completed"
+                        : "in_progress",
                 solvedCount,
                 totalCount,
                 completed: existing?.completed ?? false,
