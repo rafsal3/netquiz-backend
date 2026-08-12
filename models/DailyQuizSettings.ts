@@ -5,6 +5,7 @@ const PaperSettingSchema = new Schema(
     {
         paperId: { type: Schema.Types.ObjectId, ref: "Paper", required: true },
         questionLimit: { type: Number, required: true, default: 25 },
+        enabled: { type: Boolean, default: true },
     },
     { _id: false }
 );
@@ -13,6 +14,7 @@ const PaperSettingSchema = new Schema(
 export interface IPaperSetting {
     paperId: Types.ObjectId;
     questionLimit: number;
+    enabled?: boolean;
 }
 
 export interface IDailyQuizSettings extends Document {

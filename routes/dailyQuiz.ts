@@ -101,12 +101,12 @@ router.get("/settings", verifyToken, async (req: AuthRequest, res: Response) => 
 // ─────────────────────────────────────────────────────────────────────────────
 // PUT /daily-quiz/settings
 // Saves or replaces the user's selected papers and question limits.
-// Body: { papers: [{ paperId: string, questionLimit: number }] }
+// Body: { papers: [{ paperId: string, questionLimit: number, enabled?: boolean }] }
 // ─────────────────────────────────────────────────────────────────────────────
 router.put("/settings", verifyToken, async (req: AuthRequest, res: Response) => {
     try {
         const { papers } = req.body as {
-            papers: { paperId: string; questionLimit: number }[];
+            papers: { paperId: string; questionLimit: number; enabled?: boolean }[];
         };
 
         if (!Array.isArray(papers)) {
@@ -129,6 +129,7 @@ router.put("/settings", verifyToken, async (req: AuthRequest, res: Response) => 
                     papers: papers.map((p) => ({
                         paperId: new Types.ObjectId(p.paperId),
                         questionLimit: p.questionLimit,
+                        enabled: p.enabled !== false,
                     })),
                 },
             },
@@ -143,7 +144,7 @@ router.put("/settings", verifyToken, async (req: AuthRequest, res: Response) => 
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /daily-quiz
-// Returns today's quiz cards for every paper the user has selected.
+// Returns today's quiz cards for active papers the user has selected.
 // If a quiz for a paper hasn't been started yet, that card shows status "not_started".
 // ─────────────────────────────────────────────────────────────────────────────
 router.get("/", verifyToken, async (req: AuthRequest, res: Response) => {
@@ -152,15 +153,24 @@ router.get("/", verifyToken, async (req: AuthRequest, res: Response) => {
         const today = todayStr();
 
         const settings = await DailyQuizSettings.findOne({ uid }).populate<{
-            papers: { paperId: { _id: Types.ObjectId; name: string; order: number }; questionLimit: number }[];
+            papers: { paperId: { _id: Types.ObjectId; name: string; order: number }; questionLimit: number; enabled?: boolean }[];
         }>("papers.paperId", "name order");
 
         if (!settings || settings.papers.length === 0) {
             return res.json({ date: today, quizzes: [] });
         }
 
-        // Fetch existing daily quizzes for today
-        const paperIds = settings.papers.map((p) => p.paperId._id);
+        // Filter for active/enabled papers only
+        const activePapers = settings.papers.filter(
+            (p) => p.enabled !== false && p.paperId
+        );
+
+        if (activePapers.length === 0) {
+            return res.json({ date: today, quizzes: [] });
+        }
+
+        // Fetch existing daily quizzes for today for active papers
+        const paperIds = activePapers.map((p) => p.paperId._id);
         const existingQuizzes = await DailyQuiz.find({
             uid,
             paperId: { $in: paperIds },
@@ -171,7 +181,7 @@ router.get("/", verifyToken, async (req: AuthRequest, res: Response) => {
             existingQuizzes.map((q) => [q.paperId.toString(), q])
         );
 
-        const quizzes = settings.papers.map((paperSetting) => {
+        const quizzes = activePapers.map((paperSetting) => {
             const paperId = paperSetting.paperId._id.toString();
             const existing = quizMap.get(paperId);
 
@@ -232,6 +242,10 @@ router.post("/:paperId/start", verifyToken, async (req: AuthRequest, res: Respon
         );
         if (!paperSetting) {
             return res.status(400).json({ message: "This paper is not in your daily quiz settings." });
+        }
+
+        if (paperSetting.enabled === false) {
+            return res.status(400).json({ message: "This paper is currently paused in your daily quiz settings." });
         }
 
         // Select questions using the isolated helper
