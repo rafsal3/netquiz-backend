@@ -128,7 +128,7 @@ router.put("/settings", verifyToken, async (req: AuthRequest, res: Response) => 
                 $set: {
                     papers: papers.map((p) => ({
                         paperId: new Types.ObjectId(p.paperId),
-                        questionLimit: p.questionLimit,
+                        questionLimit: Math.max(1, Math.round(p.questionLimit)),
                         enabled: p.enabled !== false,
                     })),
                 },
@@ -188,12 +188,14 @@ router.get("/", verifyToken, async (req: AuthRequest, res: Response) => {
             const solvedCount = existing
                 ? existing.questions.filter((q) => q.solved).length
                 : 0;
-            const totalCount = existing ? existing.questions.length : paperSetting.questionLimit;
+            // If already started today, show today's quiz question count; otherwise show configured question limit
+            const currentLimit = existing ? existing.questions.length : paperSetting.questionLimit;
+            const totalCount = currentLimit;
 
             return {
                 paperId,
                 paperName: paperSetting.paperId.name,
-                questionLimit: paperSetting.questionLimit,
+                questionLimit: currentLimit,
                 status: !existing
                     ? "not_started"
                     : existing.completed
@@ -222,7 +224,7 @@ router.post("/:paperId/start", verifyToken, async (req: AuthRequest, res: Respon
         const { paperId } = req.params;
         const today = todayStr();
 
-        // Check if quiz already exists for today
+        // Check if quiz already exists for today (keep as-is if already started)
         const existing = await DailyQuiz.findOne({ uid, paperId, date: today }).populate(
             "questions.questionId"
         );
@@ -231,7 +233,7 @@ router.post("/:paperId/start", verifyToken, async (req: AuthRequest, res: Respon
             return res.json({ message: "Quiz already generated", quiz: existing, alreadyExists: true });
         }
 
-        // Look up the question limit from settings
+        // Look up the question limit from settings for new quizzes
         const settings = await DailyQuizSettings.findOne({ uid });
         if (!settings) {
             return res.status(400).json({ message: "No daily quiz settings found. Please configure settings first." });
