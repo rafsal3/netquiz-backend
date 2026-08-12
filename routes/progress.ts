@@ -39,8 +39,55 @@ router.get('/me', verifyToken, async (req: AuthRequest, res: Response) => {
     }
 });
 
+// ─── Helper: Update streak and active dates ─────────────────────────────────
+export function updateStreakAndActivity(progress: any) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}-${mm}-${dd}`;
+
+    if (!progress.activeDates) {
+        progress.activeDates = [];
+    }
+    if (!progress.activeDates.includes(todayStr)) {
+        progress.activeDates.push(todayStr);
+    }
+
+    const lastActive = progress.lastActiveDate
+        ? new Date(progress.lastActiveDate)
+        : null;
+
+    if (lastActive) {
+        lastActive.setHours(0, 0, 0, 0);
+        const diffDays = Math.floor(
+            (today.getTime() - lastActive.getTime()) / (1000 * 60 * 60 * 24)
+        );
+
+        if (diffDays === 0) {
+            // Same day — ensure streak is at least 1
+            if (!progress.streak || progress.streak === 0) {
+                progress.streak = 1;
+            }
+        } else if (diffDays === 1) {
+            // Consecutive day — increment streak
+            progress.streak = (progress.streak || 0) + 1;
+        } else {
+            // Gap of more than 1 day — reset streak to 1
+            progress.streak = 1;
+        }
+    } else {
+        // First active day
+        progress.streak = 1;
+    }
+
+    progress.lastActiveDate = new Date();
+}
+
 // ─── POST /progress/sync ──────────────────────────────
-// Called every time Flutter app opens — uploads local progress diff
+// Called every time client or app syncs practice / quiz progress
 // Payload: array of question progress entries
 router.post('/sync', verifyToken, async (req: AuthRequest, res: Response) => {
     try {
@@ -94,7 +141,6 @@ router.post('/sync', verifyToken, async (req: AuthRequest, res: Response) => {
 
             if (existingIndex > -1) {
                 // Update existing question progress
-                // Only update if incoming data is newer/better
                 const existing = progress.questions[existingIndex];
                 existing.status = incoming.status;
                 existing.attempts = Math.max(existing.attempts, incoming.attempts);
@@ -103,7 +149,7 @@ router.post('/sync', verifyToken, async (req: AuthRequest, res: Response) => {
                 pointsDelta += additionalCorrect * 10;
                 
                 existing.correct = Math.max(existing.correct, incomingCorrect);
-                existing.lastSeen = new Date(incoming.lastSeen);
+                existing.lastSeen = new Date(incoming.lastSeen || new Date());
                 existing.avgTime = incoming.avgTime;
             } else {
                 // New question — push it
@@ -113,57 +159,18 @@ router.post('/sync', verifyToken, async (req: AuthRequest, res: Response) => {
                     status: incoming.status,
                     attempts: incoming.attempts,
                     correct: incomingCorrect,
-                    lastSeen: new Date(incoming.lastSeen),
+                    lastSeen: new Date(incoming.lastSeen || new Date()),
                     avgTime: incoming.avgTime,
                 });
             }
         }
 
-        // ─── Streak calculation ────────────────────────────
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const yyyy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        const todayStr = `${yyyy}-${mm}-${dd}`;
-
-        if (!progress.activeDates) {
-            progress.activeDates = [];
-        }
-        if (!progress.activeDates.includes(todayStr)) {
-            progress.activeDates.push(todayStr);
-        }
-
-        const lastActive = progress.lastActiveDate
-            ? new Date(progress.lastActiveDate)
-            : null;
-
-        if (lastActive) {
-            lastActive.setHours(0, 0, 0, 0);
-            const diffDays = Math.floor(
-                (today.getTime() - lastActive.getTime()) / (1000 * 60 * 60 * 24)
-            );
-
-            if (diffDays === 0) {
-                // Same day — no change to streak
-            } else if (diffDays === 1) {
-                // Consecutive day — increment streak
-                progress.streak += 1;
-            } else {
-                // Gap of more than 1 day — reset streak
-                progress.streak = 1;
-            }
-        } else {
-            // First time syncing
-            progress.streak = 1;
-        }
+        // ─── Streak & Activity calculation ─────────────────
+        updateStreakAndActivity(progress);
 
         // ─── Points calculation ────────────────────────────
         // 10 points per newly gained correct answer
         progress.totalPoints += pointsDelta;
-
-        progress.lastActiveDate = new Date();
         progress.lastSyncedAt = new Date();
 
         // ─── Level calculation ────────────────────────────
@@ -223,6 +230,21 @@ router.get('/stats', verifyToken, async (req: AuthRequest, res: Response) => {
             ? Math.round(questions.reduce((sum, q) => sum + (q.avgTime ?? 0), 0) / total)
             : 0;
 
+        // Check if streak is still active or expired
+        // If lastActiveDate was before yesterday (gap of >= 2 days), current effective streak is 0
+        let currentStreak = progress.streak || 0;
+        if (progress.lastActiveDate && currentStreak > 0) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const lastActive = new Date(progress.lastActiveDate);
+            lastActive.setHours(0, 0, 0, 0);
+            const diffDays = Math.floor((today.getTime() - lastActive.getTime()) / (1000 * 60 * 60 * 24));
+            if (diffDays > 1) {
+                // Gap of more than 1 day - streak has broken
+                currentStreak = 0;
+            }
+        }
+
         res.json({
             total,
             mastered,
@@ -230,7 +252,7 @@ router.get('/stats', verifyToken, async (req: AuthRequest, res: Response) => {
             unseen,
             accuracy,
             avgTime,
-            streak: progress.streak,
+            streak: currentStreak,
             activeDates: progress.activeDates || [],
             points: progress.totalPoints,
             level: progress.level || 1,
@@ -315,16 +337,28 @@ router.patch('/daily-quiz', verifyToken, async (req: AuthRequest, res: Response)
         const uid = req.uid!;
         const todayStr = new Date().toISOString().split('T')[0];
 
-        const progress = await Progress.findOneAndUpdate(
-            { uid },
-            { $set: { lastDailyQuizDate: todayStr } },
-            { new: true, upsert: true }
-        );
+        let progress = await Progress.findOne({ uid });
+        if (!progress) {
+            progress = await Progress.create({
+                uid,
+                questions: [],
+                streak: 0,
+                activeDates: [],
+                totalPoints: 0,
+                level: 1,
+                lastActiveDate: null,
+            });
+        }
+
+        progress.lastDailyQuizDate = todayStr;
+        updateStreakAndActivity(progress);
+        await progress.save();
 
         res.json({
             message: 'Daily quiz status updated',
             lastDailyQuizDate: progress.lastDailyQuizDate,
-            isDailyQuizCompleted: true
+            isDailyQuizCompleted: true,
+            streak: progress.streak,
         });
     } catch (err) {
         res.status(500).json({ message: 'Server error', error: err });

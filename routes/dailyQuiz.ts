@@ -4,6 +4,8 @@ import { verifyToken, AuthRequest } from "../middleware/verifyToken";
 import DailyQuizSettings from "../models/DailyQuizSettings";
 import DailyQuiz from "../models/DailyQuiz";
 import Question from "../models/Question";
+import Progress from "../models/Progress";
+import { updateStreakAndActivity } from "./progress";
 
 const router = Router();
 
@@ -336,12 +338,90 @@ router.post("/:paperId/answer", verifyToken, async (req: AuthRequest, res: Respo
 
         await quiz.save();
 
+        // ─── Update User Progress & Learning Statistics ───
+        let progress = await Progress.findOne({ uid });
+        if (!progress) {
+            progress = await Progress.create({
+                uid,
+                questions: [],
+                streak: 0,
+                activeDates: [],
+                totalPoints: 0,
+                level: 1,
+                lastActiveDate: null,
+            });
+        }
+
+        const qIdStr = questionId.toString();
+        const existingIndex = progress.questions.findIndex(
+            (q: any) => q.questionId.toString() === qIdStr
+        );
+
+        if (existingIndex > -1) {
+            const existing = progress.questions[existingIndex];
+            existing.attempts += 1;
+            if (isCorrect) {
+                if (existing.status !== "got_it") {
+                    existing.status = "got_it";
+                    progress.totalPoints += 10;
+                }
+                existing.correct += 1;
+            } else {
+                if (existing.status !== "got_it") {
+                    existing.status = "review";
+                }
+            }
+            existing.lastSeen = new Date();
+        } else {
+            if (isCorrect) {
+                progress.questions.push({
+                    questionId: new Types.ObjectId(questionId),
+                    status: "got_it",
+                    attempts: 1,
+                    correct: 1,
+                    lastSeen: new Date(),
+                } as any);
+                progress.totalPoints += 10;
+            } else {
+                progress.questions.push({
+                    questionId: new Types.ObjectId(questionId),
+                    status: "review",
+                    attempts: 1,
+                    correct: 0,
+                    lastSeen: new Date(),
+                } as any);
+            }
+        }
+
+        // Check if completing this daily quiz updates lastDailyQuizDate & streak
+        if (allSolved) {
+            progress.lastDailyQuizDate = today;
+            updateStreakAndActivity(progress);
+        } else {
+            // Ensure activity is logged for today (even if quiz is in progress)
+            if (!progress.activeDates) {
+                progress.activeDates = [];
+            }
+            if (!progress.activeDates.includes(today)) {
+                progress.activeDates.push(today);
+            }
+            if (!progress.streak || progress.streak === 0) {
+                progress.streak = 1;
+            }
+            progress.lastActiveDate = new Date();
+        }
+
+        await progress.save();
+
         res.json({
             correct: isCorrect,
             correctAnswer: questionDoc.correct,
             solved: qEntry.solved,
             attempts: qEntry.attempts,
             quizCompleted: allSolved,
+            streak: progress.streak,
+            totalPoints: progress.totalPoints,
+            isDailyQuizCompleted: progress.lastDailyQuizDate === today,
         });
     } catch (err) {
         res.status(500).json({ message: "Server error", error: err });
