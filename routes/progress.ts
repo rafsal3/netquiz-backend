@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { verifyToken, AuthRequest } from '../middleware/verifyToken';
 import Progress from '../models/Progress';
+import DailyQuiz from '../models/DailyQuiz';
 
 const router = Router();
 
@@ -245,6 +246,22 @@ router.get('/stats', verifyToken, async (req: AuthRequest, res: Response) => {
             }
         }
 
+        // Calculate activity counts per date for heatmap
+        const activityMap: Record<string, number> = {};
+        if (progress.activeDates && Array.isArray(progress.activeDates)) {
+            for (const d of progress.activeDates) {
+                activityMap[d] = 1;
+            }
+        }
+
+        const dailyQuizzes = await DailyQuiz.find({ uid: req.uid }, { date: 1, questions: 1 }).lean();
+        for (const dq of dailyQuizzes) {
+            if (dq.date) {
+                const questionsAnswered = dq.questions ? dq.questions.filter((q: any) => q.solved || (q.attempts && q.attempts > 0)).length : 0;
+                activityMap[dq.date] = (activityMap[dq.date] || 0) + Math.max(questionsAnswered, 1);
+            }
+        }
+
         res.json({
             total,
             mastered,
@@ -254,6 +271,7 @@ router.get('/stats', verifyToken, async (req: AuthRequest, res: Response) => {
             avgTime,
             streak: currentStreak,
             activeDates: progress.activeDates || [],
+            activityMap,
             points: progress.totalPoints,
             level: progress.level || 1,
             isDailyQuizCompleted: progress.lastDailyQuizDate === new Date().toISOString().split('T')[0],
