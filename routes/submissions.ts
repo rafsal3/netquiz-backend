@@ -245,7 +245,8 @@ router.put('/:id/reject', verifyToken, isAdmin, async (req: AuthRequest, res: Re
 // ─── DELETE /submissions/:id — admin only ─────────────
 router.delete('/:id', verifyToken, isAdmin, async (req: AuthRequest, res: Response) => {
     try {
-        await Submission.findByIdAndDelete(req.params.id);
+        const submission = await Submission.findByIdAndDelete(req.params.id);
+        if (!submission) return res.status(404).json({ message: 'Submission not found' });
         res.json({ message: 'Submission deleted' });
     } catch (err) {
         res.status(500).json({ message: 'Server error', error: err });

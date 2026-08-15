@@ -36,9 +36,14 @@ router.post('/papers', verifyToken, isAdmin, async (req: AuthRequest, res: Respo
 // PUT /curriculum/papers/:id — admin only
 router.put('/papers/:id', verifyToken, isAdmin, async (req: AuthRequest, res: Response) => {
     try {
+        const { name, order } = req.body;
+        const updateFields: Record<string, any> = {};
+        if (name !== undefined) updateFields.name = name;
+        if (order !== undefined) updateFields.order = order;
+
         const paper = await Paper.findByIdAndUpdate(
             req.params.id,
-            { $set: req.body },
+            { $set: updateFields },
             { new: true }
         );
         if (!paper) return res.status(404).json({ message: 'Paper not found' });
@@ -133,9 +138,15 @@ router.post('/modules', verifyToken, isAdmin, async (req: AuthRequest, res: Resp
 // PUT /curriculum/modules/:id — admin only
 router.put('/modules/:id', verifyToken, isAdmin, async (req: AuthRequest, res: Response) => {
     try {
+        const { name, order, paperId } = req.body;
+        const updateFields: Record<string, any> = {};
+        if (name !== undefined) updateFields.name = name;
+        if (order !== undefined) updateFields.order = order;
+        if (paperId !== undefined) updateFields.paperId = paperId;
+
         const module = await Module.findByIdAndUpdate(
             req.params.id,
-            { $set: req.body },
+            { $set: updateFields },
             { new: true }
         );
         if (!module) return res.status(404).json({ message: 'Module not found' });
@@ -229,9 +240,16 @@ router.post('/submodules', verifyToken, isAdmin, async (req: AuthRequest, res: R
 // PUT /curriculum/submodules/:id — admin only
 router.put('/submodules/:id', verifyToken, isAdmin, async (req: AuthRequest, res: Response) => {
     try {
+        const { name, order, moduleId, paperId } = req.body;
+        const updateFields: Record<string, any> = {};
+        if (name !== undefined) updateFields.name = name;
+        if (order !== undefined) updateFields.order = order;
+        if (moduleId !== undefined) updateFields.moduleId = moduleId;
+        if (paperId !== undefined) updateFields.paperId = paperId;
+
         const subModule = await SubModule.findByIdAndUpdate(
             req.params.id,
-            { $set: req.body },
+            { $set: updateFields },
             { new: true }
         );
         if (!subModule) return res.status(404).json({ message: 'SubModule not found' });

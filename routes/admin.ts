@@ -3,6 +3,9 @@ import { verifyToken, AuthRequest } from '../middleware/verifyToken';
 import { isAdmin } from '../middleware/isAdmin';
 import User from '../models/User';
 import Progress from '../models/Progress';
+import Submission from '../models/Submission';
+import DailyQuiz from '../models/DailyQuiz';
+import DailyQuizSettings from '../models/DailyQuizSettings';
 import admin from '../config/firebase';
 
 const router = Router();
@@ -18,9 +21,10 @@ router.get('/users', async (req: AuthRequest, res: Response) => {
 
         const filter: Record<string, any> = {};
         if (search) {
+            const escaped = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             filter.$or = [
-                { email: { $regex: search, $options: 'i' } },
-                { displayName: { $regex: search, $options: 'i' } },
+                { email: { $regex: escaped, $options: 'i' } },
+                { displayName: { $regex: escaped, $options: 'i' } },
             ];
         }
 
@@ -118,9 +122,17 @@ router.put('/users/:uid', async (req: AuthRequest, res: Response) => {
     try {
         const { role, displayName } = req.body;
 
+        const updateFields: Record<string, any> = {};
+        if (role !== undefined) updateFields.role = role;
+        if (displayName !== undefined) updateFields.displayName = displayName;
+
+        if (Object.keys(updateFields).length === 0) {
+            return res.status(400).json({ message: 'No valid fields provided for update' });
+        }
+
         const user = await User.findOneAndUpdate(
             { uid: req.params.uid },
-            { $set: { role, displayName } },
+            { $set: updateFields },
             { new: true }
         );
 
@@ -134,10 +146,32 @@ router.put('/users/:uid', async (req: AuthRequest, res: Response) => {
 // ─── DELETE /admin/users/:uid ─────────────────────────
 router.delete('/users/:uid', async (req: AuthRequest, res: Response) => {
     try {
-        await User.findOneAndDelete({ uid: req.params.uid });
-        // Also delete their progress
-        await Progress.findOneAndDelete({ uid: req.params.uid });
-        res.json({ message: 'User deleted' });
+        const { uid } = req.params;
+
+        // Verify user exists first
+        const user = await User.findOne({ uid });
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        // 1. Delete from Firebase so they can't log back in
+        try {
+            await admin.auth().deleteUser(uid);
+        } catch (firebaseErr: any) {
+            // Ignore 'user not found' in Firebase (may have been deleted already)
+            if (firebaseErr.code !== 'auth/user-not-found') {
+                throw firebaseErr;
+            }
+        }
+
+        // 2. Clean up all associated MongoDB data
+        await Promise.all([
+            User.findOneAndDelete({ uid }),
+            Progress.findOneAndDelete({ uid }),
+            Submission.deleteMany({ submittedBy: uid }),
+            DailyQuiz.deleteMany({ uid }),
+            DailyQuizSettings.findOneAndDelete({ uid }),
+        ]);
+
+        res.json({ message: 'User and all associated data deleted' });
     } catch (err) {
         res.status(500).json({ message: 'Server error', error: err });
     }

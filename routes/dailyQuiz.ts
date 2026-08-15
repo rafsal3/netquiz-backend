@@ -4,6 +4,8 @@ import { verifyToken, AuthRequest } from "../middleware/verifyToken";
 import DailyQuizSettings from "../models/DailyQuizSettings";
 import DailyQuiz from "../models/DailyQuiz";
 import Question from "../models/Question";
+import Progress from "../models/Progress";
+import { updateStreakAndActivity } from "./progress";
 
 const router = Router();
 
@@ -101,12 +103,12 @@ router.get("/settings", verifyToken, async (req: AuthRequest, res: Response) => 
 // ─────────────────────────────────────────────────────────────────────────────
 // PUT /daily-quiz/settings
 // Saves or replaces the user's selected papers and question limits.
-// Body: { papers: [{ paperId: string, questionLimit: number }] }
+// Body: { papers: [{ paperId: string, questionLimit: number, enabled?: boolean }] }
 // ─────────────────────────────────────────────────────────────────────────────
 router.put("/settings", verifyToken, async (req: AuthRequest, res: Response) => {
     try {
         const { papers } = req.body as {
-            papers: { paperId: string; questionLimit: number }[];
+            papers: { paperId: string; questionLimit: number; enabled?: boolean }[];
         };
 
         if (!Array.isArray(papers)) {
@@ -128,7 +130,8 @@ router.put("/settings", verifyToken, async (req: AuthRequest, res: Response) => 
                 $set: {
                     papers: papers.map((p) => ({
                         paperId: new Types.ObjectId(p.paperId),
-                        questionLimit: p.questionLimit,
+                        questionLimit: Math.max(1, Math.round(p.questionLimit)),
+                        enabled: p.enabled !== false,
                     })),
                 },
             },
@@ -143,7 +146,7 @@ router.put("/settings", verifyToken, async (req: AuthRequest, res: Response) => 
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /daily-quiz
-// Returns today's quiz cards for every paper the user has selected.
+// Returns today's quiz cards for active papers the user has selected.
 // If a quiz for a paper hasn't been started yet, that card shows status "not_started".
 // ─────────────────────────────────────────────────────────────────────────────
 router.get("/", verifyToken, async (req: AuthRequest, res: Response) => {
@@ -152,15 +155,24 @@ router.get("/", verifyToken, async (req: AuthRequest, res: Response) => {
         const today = todayStr();
 
         const settings = await DailyQuizSettings.findOne({ uid }).populate<{
-            papers: { paperId: { _id: Types.ObjectId; name: string; order: number }; questionLimit: number }[];
+            papers: { paperId: { _id: Types.ObjectId; name: string; order: number }; questionLimit: number; enabled?: boolean }[];
         }>("papers.paperId", "name order");
 
         if (!settings || settings.papers.length === 0) {
             return res.json({ date: today, quizzes: [] });
         }
 
-        // Fetch existing daily quizzes for today
-        const paperIds = settings.papers.map((p) => p.paperId._id);
+        // Filter for active/enabled papers only
+        const activePapers = settings.papers.filter(
+            (p) => p.enabled !== false && p.paperId
+        );
+
+        if (activePapers.length === 0) {
+            return res.json({ date: today, quizzes: [] });
+        }
+
+        // Fetch existing daily quizzes for today for active papers
+        const paperIds = activePapers.map((p) => p.paperId._id);
         const existingQuizzes = await DailyQuiz.find({
             uid,
             paperId: { $in: paperIds },
@@ -171,19 +183,21 @@ router.get("/", verifyToken, async (req: AuthRequest, res: Response) => {
             existingQuizzes.map((q) => [q.paperId.toString(), q])
         );
 
-        const quizzes = settings.papers.map((paperSetting) => {
+        const quizzes = activePapers.map((paperSetting) => {
             const paperId = paperSetting.paperId._id.toString();
             const existing = quizMap.get(paperId);
 
             const solvedCount = existing
                 ? existing.questions.filter((q) => q.solved).length
                 : 0;
-            const totalCount = existing ? existing.questions.length : paperSetting.questionLimit;
+            // If already started today, show today's quiz question count; otherwise show configured question limit
+            const currentLimit = existing ? existing.questions.length : paperSetting.questionLimit;
+            const totalCount = currentLimit;
 
             return {
                 paperId,
                 paperName: paperSetting.paperId.name,
-                questionLimit: paperSetting.questionLimit,
+                questionLimit: currentLimit,
                 status: !existing
                     ? "not_started"
                     : existing.completed
@@ -212,7 +226,7 @@ router.post("/:paperId/start", verifyToken, async (req: AuthRequest, res: Respon
         const { paperId } = req.params;
         const today = todayStr();
 
-        // Check if quiz already exists for today
+        // Check if quiz already exists for today (keep as-is if already started)
         const existing = await DailyQuiz.findOne({ uid, paperId, date: today }).populate(
             "questions.questionId"
         );
@@ -221,7 +235,7 @@ router.post("/:paperId/start", verifyToken, async (req: AuthRequest, res: Respon
             return res.json({ message: "Quiz already generated", quiz: existing, alreadyExists: true });
         }
 
-        // Look up the question limit from settings
+        // Look up the question limit from settings for new quizzes
         const settings = await DailyQuizSettings.findOne({ uid });
         if (!settings) {
             return res.status(400).json({ message: "No daily quiz settings found. Please configure settings first." });
@@ -232,6 +246,10 @@ router.post("/:paperId/start", verifyToken, async (req: AuthRequest, res: Respon
         );
         if (!paperSetting) {
             return res.status(400).json({ message: "This paper is not in your daily quiz settings." });
+        }
+
+        if (paperSetting.enabled === false) {
+            return res.status(400).json({ message: "This paper is currently paused in your daily quiz settings." });
         }
 
         // Select questions using the isolated helper
@@ -320,12 +338,90 @@ router.post("/:paperId/answer", verifyToken, async (req: AuthRequest, res: Respo
 
         await quiz.save();
 
+        // ─── Update User Progress & Learning Statistics ───
+        let progress = await Progress.findOne({ uid });
+        if (!progress) {
+            progress = await Progress.create({
+                uid,
+                questions: [],
+                streak: 0,
+                activeDates: [],
+                totalPoints: 0,
+                level: 1,
+                lastActiveDate: null,
+            });
+        }
+
+        const qIdStr = questionId.toString();
+        const existingIndex = progress.questions.findIndex(
+            (q: any) => q.questionId.toString() === qIdStr
+        );
+
+        if (existingIndex > -1) {
+            const existing = progress.questions[existingIndex];
+            existing.attempts += 1;
+            if (isCorrect) {
+                if (existing.status !== "got_it") {
+                    existing.status = "got_it";
+                    progress.totalPoints += 10;
+                }
+                existing.correct += 1;
+            } else {
+                if (existing.status !== "got_it") {
+                    existing.status = "review";
+                }
+            }
+            existing.lastSeen = new Date();
+        } else {
+            if (isCorrect) {
+                progress.questions.push({
+                    questionId: new Types.ObjectId(questionId),
+                    status: "got_it",
+                    attempts: 1,
+                    correct: 1,
+                    lastSeen: new Date(),
+                } as any);
+                progress.totalPoints += 10;
+            } else {
+                progress.questions.push({
+                    questionId: new Types.ObjectId(questionId),
+                    status: "review",
+                    attempts: 1,
+                    correct: 0,
+                    lastSeen: new Date(),
+                } as any);
+            }
+        }
+
+        // Check if completing this daily quiz updates lastDailyQuizDate & streak
+        if (allSolved) {
+            progress.lastDailyQuizDate = today;
+            updateStreakAndActivity(progress);
+        } else {
+            // Ensure activity is logged for today (even if quiz is in progress)
+            if (!progress.activeDates) {
+                progress.activeDates = [];
+            }
+            if (!progress.activeDates.includes(today)) {
+                progress.activeDates.push(today);
+            }
+            if (!progress.streak || progress.streak === 0) {
+                progress.streak = 1;
+            }
+            progress.lastActiveDate = new Date();
+        }
+
+        await progress.save();
+
         res.json({
             correct: isCorrect,
             correctAnswer: questionDoc.correct,
             solved: qEntry.solved,
             attempts: qEntry.attempts,
             quizCompleted: allSolved,
+            streak: progress.streak,
+            totalPoints: progress.totalPoints,
+            isDailyQuizCompleted: progress.lastDailyQuizDate === today,
         });
     } catch (err) {
         res.status(500).json({ message: "Server error", error: err });
